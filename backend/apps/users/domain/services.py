@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from importlib import import_module
 
 from django.conf import settings
 from django.contrib.auth import login as django_login
@@ -15,6 +16,7 @@ from django.contrib.auth.password_validation import (
 )
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.contrib.sessions.models import Session
 from django.utils import timezone
 
 
@@ -99,6 +101,21 @@ def validate_user_password(*, user, password: str, field_name: str = "new_passwo
         raise PasswordValidationFailedError({field_name: exc.messages}) from exc
 
 
+def preserve_existing_user_sessions(*, user) -> None:
+    session_hash = user.get_session_auth_hash()
+    session_user_id = str(user.pk)
+    session_store_class = import_module(settings.SESSION_ENGINE).SessionStore
+
+    for session in Session.objects.filter(expire_date__gt=timezone.now()):
+        session_data = session.get_decoded()
+        if session_data.get("_auth_user_id") != session_user_id:
+            continue
+
+        session_data["_auth_user_hash"] = session_hash
+        session.session_data = session_store_class().encode(session_data)
+        session.save(update_fields=["session_data", "expire_date"])
+
+
 @transaction.atomic
 def create_user_account(*, actor, name: str, email: str, temporary_password: str, is_active: bool = True):
     user_model = get_user_model()
@@ -171,6 +188,33 @@ def update_user_account(
 
     if update_fields:
         user.save(update_fields=[*update_fields, "updated_at"])
+
+    return user
+
+
+@transaction.atomic
+def admin_reset_user_password(*, actor, user_id, new_temporary_password: str):
+    user_model = get_user_model()
+    user = (
+        user_model.all_objects.select_for_update()
+        .filter(pk=user_id, deleted_at__isnull=True)
+        .first()
+    )
+
+    if user is None:
+        raise UserNotFoundError
+
+    validate_user_password(
+        user=user,
+        password=new_temporary_password,
+        field_name="new_temporary_password",
+    )
+
+    user.set_password(new_temporary_password)
+    user.must_reset_password = True
+    user.save(update_fields=["password", "must_reset_password", "updated_at"])
+    password_changed(new_temporary_password, user)
+    preserve_existing_user_sessions(user=user)
 
     return user
 

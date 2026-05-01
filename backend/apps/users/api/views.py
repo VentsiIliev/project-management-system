@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.domain.services import (
+    admin_reset_user_password,
     create_user_account,
     DuplicateEmailError,
     InvalidCredentialsError,
@@ -21,6 +22,7 @@ from apps.users.domain.services import (
 )
 
 from .serializers import (
+    AdminResetUserPasswordSerializer,
     AdminUserSerializer,
     CreateUserSerializer,
     ForceResetPasswordSerializer,
@@ -252,6 +254,45 @@ class AdminUserDetailView(APIView):
                 code="VALIDATION_ERROR",
                 message="Invalid input",
                 details={"email": ["A user with this email already exists."]},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_data = AdminUserSerializer(updated_user).data
+        return Response({"user": user_data}, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class AdminUserPasswordResetView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, user_id):
+        serializer = AdminResetUserPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated_user = admin_reset_user_password(
+                actor=request.user,
+                user_id=user_id,
+                new_temporary_password=serializer.validated_data["new_temporary_password"],
+            )
+        except UserNotFoundError:
+            return error_response(
+                code="USER_NOT_FOUND",
+                message="User not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except PasswordValidationFailedError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 

@@ -10,6 +10,10 @@ class ForceResetPasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(trim_whitespace=False)
 
 
+class AdminResetUserPasswordSerializer(serializers.Serializer):
+    new_temporary_password = serializers.CharField(trim_whitespace=False)
+
+
 class CreateUserSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField()
