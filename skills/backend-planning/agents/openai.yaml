@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Planner"
+  short_description: "Plan backend slices from product specs."
+  default_prompt: "Use $backend-planning to turn the current product specs into backend architecture, APIs, data models, and delivery slices."

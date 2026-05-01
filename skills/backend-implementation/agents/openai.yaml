@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Implementer"
+  short_description: "Implement backend code from repo specs."
+  default_prompt: "Use $backend-implementation to implement the backend slice for the current story using the approved repo architecture."

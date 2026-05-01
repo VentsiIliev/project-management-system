@@ -1,0 +1,4 @@
+interface:
+  display_name: "Issue Executor"
+  short_description: "Turn backlog issues into delivery slices."
+  default_prompt: "Use $github-issue-execution to break the current issue into implementation tasks, dependencies, and definition of done."

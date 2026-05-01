@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Implementer"
+  short_description: "Implement frontend code from repo specs."
+  default_prompt: "Use $frontend-implementation to implement the frontend slice for the current story using the approved repo architecture."

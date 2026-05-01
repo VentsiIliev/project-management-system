@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-management-backend"
+version = "0.1.0"
+description = "Backend scaffold for the project management system."
+requires-python = ">=3.12"
+dependencies = [
+  "Django>=5.1,<5.2",
+  "djangorestframework>=3.15,<3.16",
+  "channels>=4.1,<4.2",
+  "psycopg[binary]>=3.2,<3.3",
+  "redis>=5.0,<6.0",
+  "pytest>=8.3,<8.4",
+  "pytest-django>=4.9,<5.0",
+  "factory_boy>=3.3,<3.4",
+  "python-dotenv>=1.0,<2.0",
+  "whitenoise>=6.8,<6.9",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps*", "config*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+pythonpath = ["."]
+testpaths = ["tests", "apps"]

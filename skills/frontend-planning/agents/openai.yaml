@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Planner"
+  short_description: "Plan frontend slices from product specs."
+  default_prompt: "Use $frontend-planning to turn the current product specs into frontend architecture, routes, states, and delivery slices."
