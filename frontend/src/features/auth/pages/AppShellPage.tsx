@@ -1,4 +1,6 @@
+import { Button } from "../../../components/Button";
 import { Panel } from "../../../components/Panel";
+import { useLogoutMutation } from "../hooks/useLogoutMutation";
 import { type SessionUser } from "../types";
 
 type AppShellPageProps = {
@@ -6,6 +8,8 @@ type AppShellPageProps = {
 };
 
 export function AppShellPage({ user }: AppShellPageProps) {
+  const logoutMutation = useLogoutMutation();
+
   return (
     <main className="shell">
       <div className="shell__hero">
@@ -46,6 +50,14 @@ export function AppShellPage({ user }: AppShellPageProps) {
             <li>Session bootstrap query gates the shell</li>
             <li>Reset-required users are redirected out of the main shell</li>
           </ul>
+          <Button
+            disabled={logoutMutation.isPending}
+            onClick={() => logoutMutation.mutate()}
+            type="button"
+            variant="secondary"
+          >
+            {logoutMutation.isPending ? "Signing out..." : "Sign out"}
+          </Button>
         </Panel>
       </section>
     </main>

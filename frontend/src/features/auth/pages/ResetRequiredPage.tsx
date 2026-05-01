@@ -9,6 +9,7 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { type SessionUser } from "../types";
 import { AuthFrame } from "../components/AuthFrame";
 import { useForceResetPasswordMutation } from "../hooks/useForceResetPasswordMutation";
+import { useLogoutMutation } from "../hooks/useLogoutMutation";
 import {
   forceResetPasswordSchema,
   type ForceResetPasswordFormValues,
@@ -34,6 +35,7 @@ function getDetailMessages(detail: unknown): string[] {
 
 export function ResetRequiredPage({ user }: ResetRequiredPageProps) {
   const resetPasswordMutation = useForceResetPasswordMutation();
+  const logoutMutation = useLogoutMutation();
   const {
     formState: { errors },
     handleSubmit,
@@ -109,6 +111,15 @@ export function ResetRequiredPage({ user }: ResetRequiredPageProps) {
             {resetPasswordMutation.isPending
               ? "Updating password..."
               : "Set new password"}
+          </Button>
+          <Button
+            disabled={logoutMutation.isPending}
+            fullWidth
+            onClick={() => logoutMutation.mutate()}
+            type="button"
+            variant="secondary"
+          >
+            {logoutMutation.isPending ? "Signing out..." : "Sign out"}
           </Button>
         </form>
       </Panel>

@@ -68,6 +68,15 @@ def get_active_session_user(request):
     return user
 
 
+def logout_user_session(*, request) -> bool:
+    session_user = get_active_session_user(request)
+    if session_user is None:
+        return False
+
+    django_logout(request)
+    return True
+
+
 def validate_user_password(*, user, password: str) -> None:
     try:
         if getattr(settings, "AUTH_PASSWORD_VALIDATORS", None):

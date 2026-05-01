@@ -220,6 +220,37 @@ describe("auth flow", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("logs out from the authenticated shell and returns to the login route", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
+    await user.click(
+      await screen.findByRole("button", {
+        name: /sign out/i,
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/logout");
+    const logoutRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(logoutRequestHeaders.get("X-CSRFToken")).toBe("test-token");
+  });
+
   it("submits a forced password reset and enters the authenticated shell", async () => {
     const fetchMock = mockFetchSequence([
       jsonResponse({
@@ -316,6 +347,35 @@ describe("auth flow", () => {
         name: /your temporary password must be replaced/i,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("logs out from the reset-required shell and returns to the login route", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: true,
+        },
+      }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/reset-password"], { cookie: "csrftoken=test-token; path=/" });
+    await user.click(
+      await screen.findByRole("button", {
+        name: /sign out/i,
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/logout");
   });
 
   it("keeps reset route guards aligned after the forced reset succeeds", async () => {

@@ -166,6 +166,52 @@ def test_force_reset_password_requires_authentication():
     }
 
 
+def test_logout_invalidates_the_authenticated_session():
+    user = create_user(email="logout@example.com", must_reset_password=False)
+    client = APIClient()
+    client.force_login(user)
+
+    logout_response = client.post("/api/auth/logout")
+    session_response = client.get("/api/auth/me")
+
+    assert logout_response.status_code == 204
+    assert session_response.status_code == 401
+    assert session_response.json() == {
+        "error": {
+            "code": "UNAUTHENTICATED",
+            "message": "Authentication required.",
+            "details": {},
+        }
+    }
+
+
+def test_logout_allows_reset_required_users_to_end_their_session():
+    user = create_user(email="reset-logout@example.com", must_reset_password=True)
+    client = APIClient()
+    client.force_login(user)
+
+    logout_response = client.post("/api/auth/logout")
+    session_response = client.get("/api/auth/me")
+
+    assert logout_response.status_code == 204
+    assert session_response.status_code == 401
+
+
+def test_logout_requires_authentication():
+    client = APIClient()
+
+    response = client.post("/api/auth/logout")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": {
+            "code": "UNAUTHENTICATED",
+            "message": "Authentication required.",
+            "details": {},
+        }
+    }
+
+
 def test_force_reset_password_rejects_users_who_do_not_require_reset():
     user = create_user(email="no-reset-needed@example.com", must_reset_password=False)
     client = APIClient()

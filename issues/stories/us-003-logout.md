@@ -1,4 +1,18 @@
-﻿# US-003 - Logout  ## Metadata - Area: 1. Authentication and Session Management - GitHub labels: `user-story`, `mvp`, `area:auth` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** user  
+# US-003 - Logout
+
+## Metadata
+
+- Area: `1. Authentication and Session Management`
+- GitHub labels: `user-story`, `mvp`, `area:auth`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 1`
+- Depends on: `US-001`
+- Slice type: auth session termination on top of the existing session-based login flow
+- Parallelization note: Start once the auth foundation is in place. Keep session expiration, rate limiting, and broader shell features out of scope.
+
+## User Story
+
+**As a** user  
 **I want** to log out  
 **So that** my session is ended securely.
 
@@ -10,43 +24,66 @@
 
 **Given** I have logged out  
 **When** I attempt to access a protected page  
-**Then** I am redirected to login.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** I am redirected to login.
 
-### Database
-- [ ] Confirm user fields support auth state: `is_active`, `deleted_at`, `must_reset_password`, `last_login_at`.
-- [ ] Add indexes/constraints required for email uniqueness and active-user lookup.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement/validate session endpoint behavior and generic auth errors.
-- [ ] Enforce active, non-deleted user checks before creating sessions.
-- [ ] Add service-level handling for `must_reset_password` and allowed endpoints.
-- [ ] Emit application logs for security-relevant auth events.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build guarded route behavior for authenticated, unauthenticated, and reset-required users.
-- [ ] Display validation, generic credential, expired-session, and rate-limit states.
-- [ ] Attach CSRF tokens and credentials on unsafe requests.
+- [x] Add `POST /api/auth/logout` under the `users` auth API.
+- [x] Allow authenticated users to call logout even when `must_reset_password = true`.
+- [x] Invalidate the current Django session and clear the session cookie through the normal logout flow.
+- [x] Return a simple success response that keeps the frontend contract explicit and does not add extra workflow meaning.
+- [x] Return the repository unauthenticated error envelope when logout is called without an active session.
+- [x] Keep logout transport logic in the API layer and session invalidation behavior in the `users` domain service.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test valid/invalid credentials, inactive users, deleted users, and reset-required users.
-- [ ] Integration test full browser/API auth flow and session expiry behavior.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Add shared logout API support to the auth feature.
+- [x] Add a logout mutation that clears the cached session state on success.
+- [x] Expose logout from the authenticated shell.
+- [x] Expose logout from the reset-required shell so forced-reset users can still end their session.
+- [x] Redirect the user to `/login` after successful logout.
+- [x] Keep protected-route behavior driven by the session query instead of duplicating auth state.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Backend tests cover:
+  - successful logout for an authenticated user
+  - protected endpoint rejection after logout
+  - logout for a reset-required authenticated user
+  - unauthenticated logout rejection
+- [x] Frontend tests cover:
+  - logout from the authenticated shell
+  - logout from the reset-required shell
+  - redirect back to login after logout
+  - CSRF attachment on the logout request
+- [x] Run the focused backend and frontend auth test sets for this story.
+
+## Dependencies And Parallel Work
+
+### Dependency Notes
+
+- `US-003` depends on the existing session-based auth foundation from `US-001`.
+- The endpoint contract must remain compatible with the shared API client and current session query behavior.
+- Logout must remain separate from `US-004 Session Expiration`; this slice only handles explicit user-initiated session termination.
+- Because the current working branch already contains the forced-reset flow, this implementation must preserve the security rule that reset-required users may access `/auth/logout`.
+
+### Parallel Work
+
+- Backend and frontend implementation can proceed in parallel once the logout response contract is fixed.
+- Session expiration handling, idle timeout UX, and auth rate limiting are follow-up stories and should not be folded into this slice.
+
+## Definition Of Done
+
+- `POST /api/auth/logout` exists and terminates the current session for authenticated users.
+- Calling logout without an active session returns the structured unauthenticated error envelope.
+- Authenticated users in both the normal shell and reset-required shell can log out.
+- After logout, the frontend cached session becomes unauthenticated and protected routes resolve to `/login`.
+- Backend and frontend automated tests for the logout flow pass.
+- Scope remains limited to explicit logout and does not implement session expiration, idle timeout warnings, or other auth stories.
+
+## Open Blockers Or Follow-Ups
+
+- `US-004 Session Expiration` should own timeout-driven logout behavior and expired-session UX.
+- Auth endpoint rate limiting remains tracked separately under the auth hardening stories.
