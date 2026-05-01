@@ -508,6 +508,198 @@ def test_create_user_validates_the_temporary_password_against_the_password_polic
     assert get_user_model().all_objects.filter(email="weak.password@example.com").exists() is False
 
 
+def test_admin_can_update_name_email_and_active_status_for_an_existing_user():
+    admin_user = create_user(
+        email="admin.update@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="person.before@example.com", name="Before Name")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {
+            "name": "After Name",
+            "email": "person.after@example.com",
+            "is_active": False,
+        },
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user": {
+            "id": str(managed_user.id),
+            "email": "person.after@example.com",
+            "name": "After Name",
+            "is_active": False,
+            "is_admin": False,
+            "must_reset_password": False,
+        }
+    }
+    assert managed_user.name == "After Name"
+    assert managed_user.email == "person.after@example.com"
+    assert managed_user.is_active is False
+
+
+def test_update_user_rejects_duplicate_email_with_a_validation_error():
+    admin_user = create_user(
+        email="admin.update-duplicate@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    create_user(email="existing.update@example.com")
+    managed_user = create_user(email="change.me@example.com", name="Change Me")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"email": "existing.update@example.com"},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "email": ["A user with this email already exists."],
+            },
+        }
+    }
+    assert managed_user.email == "change.me@example.com"
+
+
+def test_update_user_rejects_unsupported_fields_without_mutating_the_user():
+    admin_user = create_user(
+        email="admin.unsupported@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="unsupported.target@example.com", name="Supported Name")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {
+            "is_admin": True,
+            "must_reset_password": True,
+        },
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "is_admin": ["This field is not supported."],
+                "must_reset_password": ["This field is not supported."],
+            },
+        }
+    }
+    assert managed_user.is_admin is False
+    assert managed_user.must_reset_password is False
+
+
+def test_update_user_denies_non_admin_users():
+    standard_user = create_user(
+        email="member.update@example.com",
+        is_admin=False,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="managed.member@example.com")
+    client = APIClient()
+    client.force_login(standard_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"name": "Denied Update"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Admin access required."}
+
+
+def test_update_user_returns_not_found_for_soft_deleted_users():
+    admin_user = create_user(
+        email="admin.soft-delete@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(
+        email="soft.deleted@example.com",
+        deleted_at=timezone.now(),
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"name": "Should Not Apply"},
+        format="json",
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "USER_NOT_FOUND",
+            "message": "User not found.",
+            "details": {},
+        }
+    }
+
+
+def test_deactivated_users_cannot_log_in_after_an_admin_deactivates_them():
+    admin_user = create_user(
+        email="admin.deactivate@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="deactivated.later@example.com")
+    admin_client = APIClient()
+    admin_client.force_login(admin_user)
+
+    update_response = admin_client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"is_active": False},
+        format="json",
+    )
+
+    login_client = APIClient()
+    login_response = login_client.post(
+        "/api/auth/login",
+        {"email": managed_user.email, "password": "valid-password"},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert update_response.status_code == 200
+    assert managed_user.is_active is False
+    assert login_response.status_code == 401
+    assert login_response.json() == {
+        "error": {
+            "code": "INVALID_CREDENTIALS",
+            "message": "Invalid email or password.",
+            "details": {},
+        }
+    }
+
+
 @override_settings(ROOT_URLCONF=__name__)
 def test_reset_required_user_is_blocked_from_protected_endpoints():
     user = create_user(email="blocked@example.com", must_reset_password=True)

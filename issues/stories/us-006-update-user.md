@@ -1,8 +1,21 @@
-﻿# US-006 - Update User  ## Metadata - Area: 2. Admin User Management - GitHub labels: `user-story`, `mvp`, `area:admin` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-005 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin  
+# US-006 - Update User
+
+## Metadata
+
+- Area: 2. Admin User Management
+- GitHub labels: `user-story`, `mvp`, `area:admin`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 1`
+- Depends on: `US-005`
+- Parallelization note: Start after `US-005` because this story extends the same admin user API surface.
+
+## User Story
+
+**As an** Admin  
 **I want** to update user profile and active status  
 **So that** user records remain accurate.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin  
 **When** I update a user name, email, or active status  
@@ -10,43 +23,51 @@
 
 **Given** I attempt to update unsupported fields  
 **When** I submit the request  
-**Then** the system rejects unsupported changes.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects unsupported changes.
 
-### Database
-- [ ] Create/update user schema with UUID primary key, unique email, active flag, admin flag, reset flag, timestamps, soft delete.
-- [ ] Add migration and database constraints for required user fields.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement admin-only user endpoint/service logic.
-- [ ] Validate email uniqueness and password policy where relevant.
-- [ ] Apply soft-delete/deactivation rules without cascading assignment deletion.
-- [ ] Create activity/application logs for user management events.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build admin user management form/table action states.
-- [ ] Show success/error feedback for create, update, deactivate, and reset operations.
+- [x] Add admin-only `PATCH /api/admin/users/{user_id}` under the owning `users` module.
+- [x] Support partial updates for only:
+  - `name`
+  - `email`
+  - `is_active`
+- [x] Normalize updated email to lowercase before persistence.
+- [x] Reject duplicate email values across active and soft-deleted users.
+- [x] Return the same admin-user payload shape already used by `POST /api/admin/users`.
+- [x] Keep update rules in `apps/users/domain/services.py` and keep the view thin.
+- [x] Treat soft-deleted or missing users as not found.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Permission tests for admin-only access.
-- [ ] Integration tests for user create/update/deactivate/reset flows.
-- [ ] Regression tests that inactive/deleted users cannot log in.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] No frontend implementation in this slice.
+- [x] Keep the story backend-only until the admin user-management UI has an owned route surface.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add integration coverage for successful admin updates of `name`, `email`, and `is_active`.
+- [x] Add integration coverage for duplicate-email rejection.
+- [x] Add integration coverage for unsupported-field rejection such as `is_admin` or `must_reset_password`.
+- [x] Add permission coverage showing non-admin users cannot update users.
+- [x] Add regression coverage showing deactivated users still cannot log in after an admin toggles `is_active` to `false`.
+
+## Dependencies And Notes
+
+- `US-005` already established the admin-only create-user surface and reusable admin-user serializer payload. Reuse that contract instead of creating a second response shape.
+- This story should not implement:
+  - admin password reset
+  - soft delete / deactivate endpoint semantics from `US-008`
+  - admin list or detail read endpoints
+  - admin UI
+- Unsupported-field rejection should come from the update serializer contract, not ad hoc view branching.
+
+## Definition Of Done
+
+- `PATCH /api/admin/users/{user_id}` exists and is admin-only.
+- Only `name`, `email`, and `is_active` are writable.
+- Duplicate emails return a structured `VALIDATION_ERROR`.
+- Unsupported fields are rejected and do not mutate the user.
+- Soft-deleted users cannot be updated through this endpoint.
+- Integration tests cover the acceptance criteria, permissions, and inactive-login regression.

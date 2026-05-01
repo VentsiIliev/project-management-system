@@ -36,6 +36,10 @@ class DuplicateEmailError(Exception):
     pass
 
 
+class UserNotFoundError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class AuthenticatedSession:
     user: object
@@ -126,6 +130,49 @@ def create_user_account(*, actor, name: str, email: str, temporary_password: str
     )
 
     return created_user
+
+
+@transaction.atomic
+def update_user_account(
+    *,
+    actor,
+    user_id,
+    name=None,
+    email=None,
+    is_active=None,
+):
+    user_model = get_user_model()
+    user = (
+        user_model.all_objects.select_for_update()
+        .filter(pk=user_id, deleted_at__isnull=True)
+        .first()
+    )
+
+    if user is None:
+        raise UserNotFoundError
+
+    update_fields = []
+
+    if name is not None:
+        user.name = name
+        update_fields.append("name")
+
+    if email is not None:
+        normalized_email = user_model.objects.normalize_email(email).lower()
+        if user_model.all_objects.filter(email__iexact=normalized_email).exclude(pk=user.pk).exists():
+            raise DuplicateEmailError
+
+        user.email = normalized_email
+        update_fields.append("email")
+
+    if is_active is not None:
+        user.is_active = is_active
+        update_fields.append("is_active")
+
+    if update_fields:
+        user.save(update_fields=[*update_fields, "updated_at"])
+
+    return user
 
 
 @transaction.atomic

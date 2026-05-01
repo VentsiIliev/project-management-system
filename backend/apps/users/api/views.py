@@ -16,6 +16,8 @@ from apps.users.domain.services import (
     PasswordResetNotRequiredError,
     PasswordValidationFailedError,
     serialize_session_user,
+    update_user_account,
+    UserNotFoundError,
 )
 
 from .serializers import (
@@ -24,6 +26,7 @@ from .serializers import (
     ForceResetPasswordSerializer,
     LoginSerializer,
     SessionUserSerializer,
+    UpdateUserSerializer,
 )
 from .permissions import IsAdminUser
 
@@ -215,3 +218,42 @@ class AdminUserListCreateView(APIView):
 
         user_data = AdminUserSerializer(created_user).data
         return Response({"user": user_data}, status=status.HTTP_201_CREATED)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class AdminUserDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, user_id):
+        serializer = UpdateUserSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated_user = update_user_account(
+                actor=request.user,
+                user_id=user_id,
+                **serializer.validated_data,
+            )
+        except UserNotFoundError:
+            return error_response(
+                code="USER_NOT_FOUND",
+                message="User not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except DuplicateEmailError:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details={"email": ["A user with this email already exists."]},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_data = AdminUserSerializer(updated_user).data
+        return Response({"user": user_data}, status=status.HTTP_200_OK)
