@@ -1,8 +1,21 @@
-﻿# US-007 - Reset User Password  ## Metadata - Area: 2. Admin User Management - GitHub labels: `user-story`, `mvp`, `area:admin` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-005 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin  
+# US-007 - Reset User Password
+
+## Metadata
+
+- Area: 2. Admin User Management
+- GitHub labels: `user-story`, `mvp`, `area:admin`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 1`
+- Depends on: `US-005`
+- Parallelization note: Start after `US-005`; this story extends the same admin user API surface and shares the password-validation contract from `US-002` and `US-005`.
+
+## User Story
+
+**As an** Admin  
 **I want** to reset a user's password  
 **So that** the user can recover access.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin  
 **When** I set a valid temporary password for a user  
@@ -10,43 +23,49 @@
 
 **Given** the temporary password violates password policy  
 **When** I submit the reset request  
-**Then** the system rejects the request.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects the request.
 
-### Database
-- [ ] Confirm user fields support auth state: `is_active`, `deleted_at`, `must_reset_password`, `last_login_at`.
-- [ ] Add indexes/constraints required for email uniqueness and active-user lookup.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement/validate session endpoint behavior and generic auth errors.
-- [ ] Enforce active, non-deleted user checks before creating sessions.
-- [ ] Add service-level handling for `must_reset_password` and allowed endpoints.
-- [ ] Emit application logs for security-relevant auth events.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build guarded route behavior for authenticated, unauthenticated, and reset-required users.
-- [ ] Display validation, generic credential, expired-session, and rate-limit states.
-- [ ] Attach CSRF tokens and credentials on unsafe requests.
+- [x] Add admin-only `POST /api/admin/users/{user_id}/reset-password` under the owning `users` module.
+- [x] Accept only `new_temporary_password` in the request body.
+- [x] Validate the temporary password against the existing password policy.
+- [x] Update the stored password hash and set `must_reset_password = true`.
+- [x] Treat soft-deleted or missing users as not found.
+- [x] Keep password-reset rules in `apps/users/domain/services.py` and keep the view thin.
+- [x] Preserve the target user's existing authenticated sessions after the admin reset, matching the spec rule that reset does not immediately log them out.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test valid/invalid credentials, inactive users, deleted users, and reset-required users.
-- [ ] Integration test full browser/API auth flow and session expiry behavior.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] No frontend implementation in this slice.
+- [x] Keep the story backend-only until the admin user-management UI has an owned route surface.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add integration coverage for successful admin password reset.
+- [x] Add integration coverage for password-policy rejection on `new_temporary_password`.
+- [x] Add permission coverage showing non-admin users cannot reset another user's password.
+- [x] Add integration coverage showing soft-deleted targets return not found.
+- [x] Add integration coverage proving the new password works on the next login and requires a forced reset.
+- [x] Add integration coverage proving an already-authenticated target session remains valid after the admin reset.
+
+## Dependencies And Notes
+
+- Reuse the existing `validate_user_password()` domain helper and map its field errors onto `new_temporary_password`.
+- Reuse the existing admin-only permission boundary instead of creating a second admin auth path.
+- This story should not implement:
+  - frontend admin reset screens
+  - logout or session-expiration changes
+  - user deactivation semantics from `US-008`
+  - forced-reset submission flow for the target user, which is already covered by `US-002`
+
+## Definition Of Done
+
+- `POST /api/admin/users/{user_id}/reset-password` exists and is admin-only.
+- Valid temporary passwords update the stored password and set `must_reset_password = true`.
+- Invalid temporary passwords return a structured `VALIDATION_ERROR` on `new_temporary_password`.
+- Soft-deleted users cannot be reset through this endpoint.
+- The reset password can be used for the next login, and that login requires the forced-reset flow.
+- Existing authenticated sessions for the target user are not immediately invalidated by the admin reset.

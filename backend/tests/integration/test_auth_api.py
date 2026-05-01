@@ -700,6 +700,184 @@ def test_deactivated_users_cannot_log_in_after_an_admin_deactivates_them():
     }
 
 
+def test_admin_can_reset_a_users_password_and_require_a_forced_reset_on_next_login():
+    admin_user = create_user(
+        email="admin.reset@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(
+        email="reset.target@example.com",
+        password="old-password-123",
+        must_reset_password=False,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user": {
+            "id": str(managed_user.id),
+            "email": managed_user.email,
+            "name": managed_user.name,
+            "is_active": True,
+            "is_admin": False,
+            "must_reset_password": True,
+        }
+    }
+    assert managed_user.must_reset_password is True
+    assert managed_user.check_password("TempPassword456!") is True
+    assert managed_user.check_password("old-password-123") is False
+
+    old_login_client = APIClient()
+    old_login_response = old_login_client.post(
+        "/api/auth/login",
+        {"email": managed_user.email, "password": "old-password-123"},
+        format="json",
+    )
+    new_login_client = APIClient()
+    new_login_response = new_login_client.post(
+        "/api/auth/login",
+        {"email": managed_user.email, "password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert old_login_response.status_code == 401
+    assert new_login_response.status_code == 200
+    assert new_login_response.json()["requires_password_reset"] is True
+    assert new_login_response.json()["user"]["must_reset_password"] is True
+
+
+def test_admin_reset_user_password_validates_the_temporary_password_policy():
+    admin_user = create_user(
+        email="admin.reset-policy@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="reset.policy.target@example.com")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "short"},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "new_temporary_password": [
+                    "This password is too short. It must contain at least 8 characters."
+                ]
+            },
+        }
+    }
+    assert managed_user.check_password("valid-password") is True
+    assert managed_user.must_reset_password is False
+
+
+def test_reset_user_password_denies_non_admin_users():
+    standard_user = create_user(
+        email="member.reset@example.com",
+        is_admin=False,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="managed.reset@example.com")
+    client = APIClient()
+    client.force_login(standard_user)
+
+    response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Admin access required."}
+
+
+def test_reset_user_password_returns_not_found_for_soft_deleted_users():
+    admin_user = create_user(
+        email="admin.reset-soft-delete@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(
+        email="soft.deleted.reset@example.com",
+        deleted_at=timezone.now(),
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "USER_NOT_FOUND",
+            "message": "User not found.",
+            "details": {},
+        }
+    }
+
+
+def test_admin_reset_user_password_preserves_the_targets_existing_session():
+    admin_user = create_user(
+        email="admin.reset-session@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(
+        email="session.reset.target@example.com",
+        password="old-password-123",
+        must_reset_password=False,
+    )
+    target_client = APIClient()
+    target_client.force_login(managed_user)
+    before_response = target_client.get("/api/auth/me")
+
+    admin_client = APIClient()
+    admin_client.force_login(admin_user)
+    reset_response = admin_client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+    after_response = target_client.get("/api/auth/me")
+
+    assert before_response.status_code == 200
+    assert reset_response.status_code == 200
+    assert managed_user.must_reset_password is True
+    assert after_response.status_code == 200
+    assert after_response.json() == {
+        "id": str(managed_user.id),
+        "email": managed_user.email,
+        "name": managed_user.name,
+        "is_admin": False,
+        "must_reset_password": True,
+    }
+
+
 @override_settings(ROOT_URLCONF=__name__)
 def test_reset_required_user_is_blocked_from_protected_endpoints():
     user = create_user(email="blocked@example.com", must_reset_password=True)
