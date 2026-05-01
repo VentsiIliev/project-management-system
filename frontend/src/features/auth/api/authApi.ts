@@ -45,6 +45,12 @@ export async function forceResetPassword(
   return extractSessionUser(response);
 }
 
+export async function logout(): Promise<void> {
+  await apiRequest<null>("/auth/logout", {
+    method: "POST",
+  });
+}
+
 export async function fetchSession(): Promise<SessionUser | null> {
   try {
     const session = await apiRequest<SessionUser>("/auth/me");

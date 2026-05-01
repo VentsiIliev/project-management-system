@@ -10,6 +10,7 @@ from apps.users.domain.services import (
     authenticate_user_session,
     force_reset_password,
     get_active_session_user,
+    logout_user_session,
     PasswordResetNotRequiredError,
     PasswordValidationFailedError,
     serialize_session_user,
@@ -152,3 +153,19 @@ class ForceResetPasswordView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class LogoutView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        if not logout_user_session(request=request):
+            return error_response(
+                code="UNAUTHENTICATED",
+                message="Authentication required.",
+                details={},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
