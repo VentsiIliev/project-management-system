@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+import { clearAuthUiNotice } from "../features/auth/state/authUiState";
+
 Object.assign(globalThis, {
   AbortController: window.AbortController,
   AbortSignal: window.AbortSignal,
@@ -12,6 +14,7 @@ Object.assign(globalThis, {
 
 afterEach(() => {
   cleanup();
+  clearAuthUiNotice();
   document.cookie.split(";").forEach((cookie) => {
     const cookieName = cookie.split("=")[0]?.trim();
     if (cookieName) {

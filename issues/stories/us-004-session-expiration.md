@@ -1,8 +1,21 @@
-﻿# US-004 - Session Expiration  ## Metadata - Area: 1. Authentication and Session Management - GitHub labels: `user-story`, `mvp`, `area:auth` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** user  
+# US-004 - Session Expiration
+
+## Metadata
+
+- Area: 1. Authentication and Session Management
+- GitHub labels: `user-story`, `mvp`, `area:auth`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 1`
+- Depends on: `US-001`
+- Builds on implemented auth stack: `US-002`, `US-003`
+
+## User Story
+
+**As a** user  
 **I want** inactive sessions to expire  
 **So that** my account is protected when I stop using the app.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have been inactive for 8 hours  
 **When** I make another authenticated request  
@@ -10,46 +23,51 @@
 
 **Given** I continue using the application  
 **When** I make authenticated requests  
-**Then** my session inactivity timer is refreshed.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** my session inactivity timer is refreshed.
 
-### Database
-- [ ] Confirm user fields support auth state: `is_active`, `deleted_at`, `must_reset_password`, `last_login_at`.
-- [ ] Add indexes/constraints required for email uniqueness and active-user lookup.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement/validate session endpoint behavior and generic auth errors.
-- [ ] Enforce active, non-deleted user checks before creating sessions.
-- [ ] Add service-level handling for `must_reset_password` and allowed endpoints.
-- [ ] Emit application logs for security-relevant auth events.
+### Backend slice
 
-### Frontend/UI
-- [ ] Build guarded route behavior for authenticated, unauthenticated, and reset-required users.
-- [ ] Display validation, generic credential, expired-session, and rate-limit states.
-- [ ] Attach CSRF tokens and credentials on unsafe requests.
+- [x] Set Django session inactivity settings to match the spec:
+  - `SESSION_COOKIE_AGE = 28800`
+  - `SESSION_SAVE_EVERY_REQUEST = True`
+- [x] Keep expired sessions surfacing through the existing structured unauthenticated behavior instead of introducing a second auth error shape.
+- [x] Leave password-reset enforcement, logout behavior, and rate limiting unchanged in this slice.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test valid/invalid credentials, inactive users, deleted users, and reset-required users.
-- [ ] Integration test full browser/API auth flow and session expiry behavior.
+### Frontend slice
 
-### DevOps/Config
-- [ ] Configure secure cookie settings and rate-limit middleware for production/staging.
+- [x] Keep the existing session bootstrap flow as the source of truth for route guards.
+- [x] Distinguish initial unauthenticated bootstrap from an already-established session expiring during later API activity.
+- [x] When a later authenticated request returns `401`, clear session state and show an expired-session message on the login screen.
+- [x] Do not add remember-me behavior, idle countdown UI, or background polling in this slice.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+### Test slice
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+- [x] Add backend integration coverage that expired sessions are treated as unauthenticated on the next request.
+- [x] Add backend coverage that authenticated activity refreshes session timeout behavior.
+- [x] Add frontend auth-flow coverage that a post-login `401` returns the user to `/login` with an expired-session message.
+- [x] Re-run the focused auth backend and frontend test suites.
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Dependency And Sequencing Notes
+
+- This story depends on the session auth foundation from `US-001`.
+- It should stay stacked on top of the current auth branch chain because the frontend route shell from `US-001` through `US-003` is the surface being updated.
+- This story is intentionally separate from:
+  - `US-003` logout
+  - `US-058` auth endpoint rate limiting
+  - admin user CRUD
+  - project, task, comment, or notification flows
+
+## Definition Of Done
+
+- Django session settings enforce the spec's 8-hour inactivity timeout with refresh-on-use behavior.
+- Expired sessions are treated as unauthenticated without breaking the existing forced-reset and logout flows.
+- The frontend returns users to login after a later authenticated request hits `401` and explains that the session expired.
+- Backend and frontend auth tests cover the new behavior and pass.
+
+## Open Notes
+
+- No additional API endpoint is required for this story.
+- No manual session countdown UI is required for MVP.
+- If future stories need richer auth banners or cross-page session notices, build on the same expired-session state instead of introducing parallel handling paths.

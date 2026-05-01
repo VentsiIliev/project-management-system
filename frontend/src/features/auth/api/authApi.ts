@@ -53,7 +53,9 @@ export async function logout(): Promise<void> {
 
 export async function fetchSession(): Promise<SessionUser | null> {
   try {
-    const session = await apiRequest<SessionUser>("/auth/me");
+    const session = await apiRequest<SessionUser>("/auth/me", {
+      suppressUnauthorizedHandler: true,
+    });
     return extractSessionUser(session);
   } catch (error) {
     if (isApiError(error) && error.status === 401) {

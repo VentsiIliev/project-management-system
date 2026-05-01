@@ -64,9 +64,34 @@ describe("auth flow", () => {
       await screen.findByRole("heading", { name: /session established/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/jane@example.com/i)).toBeInTheDocument();
+    expect(screen.queryByText(/session expired after inactivity/i)).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const loginRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
     expect(loginRequestHeaders.get("X-CSRFToken")).toBe("test-token");
+  });
+
+  it("does not show the expired-session notice during an initial unauthenticated bootstrap", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+    ]);
+
+    renderApp(["/login"]);
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/session expired after inactivity/i),
+    ).not.toBeInTheDocument();
   });
 
   it("redirects to the reset-required shell when login returns a forced reset state", async () => {
@@ -249,6 +274,45 @@ describe("auth flow", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/logout");
     const logoutRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
     expect(logoutRequestHeaders.get("X-CSRFToken")).toBe("test-token");
+  });
+
+  it("returns to login with an expired-session message after a later authenticated request gets 401", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
+    await user.click(
+      await screen.findByRole("button", {
+        name: /sign out/i,
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/session expired after inactivity\. sign in again to continue\./i),
+    ).toBeInTheDocument();
   });
 
   it("submits a forced password reset and enters the authenticated shell", async () => {
