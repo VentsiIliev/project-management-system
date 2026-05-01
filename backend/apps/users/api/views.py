@@ -8,11 +8,18 @@ from rest_framework.views import APIView
 from apps.users.domain.services import (
     InvalidCredentialsError,
     authenticate_user_session,
+    force_reset_password,
     get_active_session_user,
+    PasswordResetNotRequiredError,
+    PasswordValidationFailedError,
     serialize_session_user,
 )
 
-from .serializers import LoginSerializer, SessionUserSerializer
+from .serializers import (
+    ForceResetPasswordSerializer,
+    LoginSerializer,
+    SessionUserSerializer,
+)
 
 
 def error_response(*, code: str, message: str, details: dict, status_code: int) -> Response:
@@ -83,3 +90,65 @@ class CurrentUserView(APIView):
 
         serializer = SessionUserSerializer(serialize_session_user(session_user))
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ForceResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        session_user = get_active_session_user(request)
+        if session_user is None:
+            return error_response(
+                code="UNAUTHENTICATED",
+                message="Authentication required.",
+                details={},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = ForceResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated_user = force_reset_password(
+                request=request,
+                user=session_user,
+                new_password=serializer.validated_data["new_password"],
+            )
+        except PasswordValidationFailedError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except PasswordResetNotRequiredError:
+            return error_response(
+                code="PASSWORD_RESET_NOT_REQUIRED",
+                message="Password reset is not required for this user.",
+                details={},
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        if updated_user is None:
+            return error_response(
+                code="UNAUTHENTICATED",
+                message="Authentication required.",
+                details={},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user_data = SessionUserSerializer(serialize_session_user(updated_user)).data
+        return Response(
+            {
+                "user": user_data,
+                "requires_password_reset": False,
+            },
+            status=status.HTTP_200_OK,
+        )
