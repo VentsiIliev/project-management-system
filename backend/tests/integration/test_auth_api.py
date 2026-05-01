@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 import pytest
+from django.conf import settings
 from django.test import override_settings
 from django.urls import include, path
 from django.contrib.auth import get_user_model
@@ -333,6 +336,45 @@ def test_current_user_returns_authenticated_profile():
         "is_admin": False,
         "must_reset_password": False,
     }
+
+
+def test_session_timeout_settings_match_the_spec():
+    assert settings.SESSION_COOKIE_AGE == 28800
+    assert settings.SESSION_SAVE_EVERY_REQUEST is True
+
+
+def test_expired_session_is_treated_as_unauthenticated_on_the_next_request():
+    user = create_user(email="expired@example.com")
+    client = APIClient()
+    client.force_login(user)
+
+    session = client.session
+    session.set_expiry(timezone.now() - timedelta(seconds=1))
+    session.save()
+
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": {
+            "code": "UNAUTHENTICATED",
+            "message": "Authentication required.",
+            "details": {},
+        }
+    }
+
+
+def test_authenticated_requests_refresh_the_session_timeout_cookie():
+    user = create_user(email="rolling-timeout@example.com")
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 200
+    assert "sessionid" in response.cookies
+    assert int(response.cookies["sessionid"]["max-age"]) == settings.SESSION_COOKIE_AGE
+    assert response.cookies["sessionid"]["expires"]
 
 
 @override_settings(ROOT_URLCONF=__name__)

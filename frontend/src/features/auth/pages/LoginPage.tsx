@@ -7,6 +7,7 @@ import { Field } from "../../../components/Field";
 import { Panel } from "../../../components/Panel";
 import { StatusMessage } from "../../../components/StatusMessage";
 import { useLoginMutation } from "../hooks/useLoginMutation";
+import { useAuthUiStore } from "../state/authUiState";
 import {
   loginSchema,
   type LoginFormValues,
@@ -15,6 +16,7 @@ import { AuthFrame } from "../components/AuthFrame";
 
 export function LoginPage() {
   const loginMutation = useLoginMutation();
+  const authNotice = useAuthUiStore((state) => state.notice);
   const {
     formState: { errors },
     handleSubmit,
@@ -45,6 +47,11 @@ export function LoginPage() {
             Unauthenticated users are routed here until the session bootstrap succeeds.
           </p>
         </div>
+        {authNotice === "session-expired" ? (
+          <StatusMessage tone="error" title="Session expired">
+            Your session expired after inactivity. Sign in again to continue.
+          </StatusMessage>
+        ) : null}
         <form
           className="form-stack"
           onSubmit={handleSubmit((values) => loginMutation.mutate(values))}

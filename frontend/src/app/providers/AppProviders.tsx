@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type PropsWithChildren, useEffect, useState } from "react";
 
 import { registerUnauthorizedHandler } from "../../api/client";
+import { markSessionExpired } from "../../features/auth/state/authUiState";
 import { sessionQueryKey } from "../../features/auth/hooks/useSessionQuery";
 
 function createQueryClient() {
@@ -27,6 +28,7 @@ export function AppProviders({
 
   useEffect(() => {
     registerUnauthorizedHandler(() => {
+      markSessionExpired();
       queryClient.setQueryData(sessionQueryKey, null);
     });
 

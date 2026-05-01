@@ -79,16 +79,17 @@ async function parseResponseBody(response: Response) {
 
 export async function apiRequest<T>(
   path: string,
-  init: RequestInit = {},
+  init: RequestInit & { suppressUnauthorizedHandler?: boolean } = {},
 ): Promise<T> {
+  const { suppressUnauthorizedHandler = false, ...requestInit } = init;
   const headers = new Headers(init.headers);
-  const method = init.method?.toUpperCase() ?? "GET";
+  const method = requestInit.method?.toUpperCase() ?? "GET";
   const isUnsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(method);
   const csrfToken = isUnsafeMethod ? getCsrfToken() : null;
 
   headers.set("Accept", "application/json");
 
-  if (init.body && !headers.has("Content-Type")) {
+  if (requestInit.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -97,7 +98,7 @@ export async function apiRequest<T>(
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
+    ...requestInit,
     credentials: "include",
     headers,
   });
@@ -107,7 +108,7 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const error = parseApiError(response, payload);
 
-    if (response.status === 401) {
+    if (response.status === 401 && !suppressUnauthorizedHandler) {
       unauthorizedHandler?.();
     }
 
