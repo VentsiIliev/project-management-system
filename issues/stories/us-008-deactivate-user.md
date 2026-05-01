@@ -1,8 +1,21 @@
-﻿# US-008 - Deactivate User  ## Metadata - Area: 2. Admin User Management - GitHub labels: `user-story`, `mvp`, `area:admin` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-005 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin  
+# US-008 - Deactivate User
+
+## Metadata
+
+- Area: 2. Admin User Management
+- GitHub labels: `user-story`, `mvp`, `area:admin`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 1`
+- Depends on: `US-005`
+- Parallelization note: Start after `US-005`; this story reuses the existing admin user update API from `US-006` and should not invent a second deactivation transport path.
+
+## User Story
+
+**As an** Admin  
 **I want** to deactivate users  
 **So that** they can no longer access the system.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin  
 **When** I deactivate a user  
@@ -10,43 +23,47 @@
 
 **Given** the deactivated user has existing assignments  
 **When** tasks are viewed  
-**Then** historical assignments remain visible.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** historical assignments remain visible.
 
-### Database
-- [ ] Create/update user schema with UUID primary key, unique email, active flag, admin flag, reset flag, timestamps, soft delete.
-- [ ] Add migration and database constraints for required user fields.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement admin-only user endpoint/service logic.
-- [ ] Validate email uniqueness and password policy where relevant.
-- [ ] Apply soft-delete/deactivation rules without cascading assignment deletion.
-- [ ] Create activity/application logs for user management events.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build admin user management form/table action states.
-- [ ] Show success/error feedback for create, update, deactivate, and reset operations.
+- [x] Reuse `PATCH /api/admin/users/{user_id}` with `{"is_active": false}` as the deactivation contract.
+- [x] Keep deactivation rules in `apps/users/domain/services.py` and keep the view thin.
+- [x] Revoke the target user's existing authenticated sessions when they transition from active to inactive.
+- [x] Keep deactivation distinct from soft delete: do not set `deleted_at`, do not remove the user record, and do not mutate assignment references.
+- [x] Treat soft-deleted or missing users as not found.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Permission tests for admin-only access.
-- [ ] Integration tests for user create/update/deactivate/reset flows.
-- [ ] Regression tests that inactive/deleted users cannot log in.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] No frontend implementation in this slice.
+- [x] Keep the story backend-only until the admin user-management UI has an owned route surface.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add integration coverage showing an admin can deactivate a user through the update endpoint.
+- [x] Add integration coverage showing deactivated users cannot create new sessions.
+- [x] Add integration coverage showing an already-authenticated target session is revoked after deactivation.
+- [x] Add permission coverage showing non-admin users cannot deactivate another user.
+- [x] Add integration coverage showing deactivation does not soft-delete the user record.
+- [x] Keep the historical-assignment guarantee as a boundary check in this slice: no code path should touch task-assignment data.
+
+## Dependencies And Notes
+
+- Reuse the existing admin-only permission boundary and `AdminUserSerializer` response shape from `US-006`.
+- Reuse the existing generic invalid-credentials login response for inactive users from `US-001`.
+- This story should not implement:
+  - a new `/api/admin/users/{user_id}/deactivate` endpoint
+  - frontend admin user-management screens
+  - soft delete or hard delete semantics
+  - assignment reassignment or task cleanup behavior
+
+## Definition Of Done
+
+- Admin deactivation is performed through `PATCH /api/admin/users/{user_id}` with `is_active = false`.
+- Deactivated users cannot create new sessions.
+- Existing authenticated sessions for the target user are revoked.
+- The user record remains present and not soft-deleted after deactivation.
+- Non-admin users cannot deactivate users.
+- The implementation does not mutate assignment references or introduce task-side effects.
