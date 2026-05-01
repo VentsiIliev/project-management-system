@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planning Reviewer"
+  short_description: "Review specs and backlog quality."
+  default_prompt: "Use $review-planning to review the current specs, backlog, dependencies, risks, and missing decisions."

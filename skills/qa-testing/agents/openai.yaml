@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Tester"
+  short_description: "Validate slices against acceptance criteria."
+  default_prompt: "Use $qa-testing to validate the current implementation slice against the issue, architecture, and test expectations."

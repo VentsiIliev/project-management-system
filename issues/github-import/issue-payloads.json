@@ -1,0 +1,387 @@
+﻿[
+    {
+        "title":  "[EPIC] Project Setup and Architecture",
+        "body":  "## Summary\r\nBaseline setup epic for the project-management system planning backlog.\r\n\r\n## Notes\r\n- Local source: `\r\nissues/epics/00-project-setup-and-architecture.md\r\n`\r\n- This epic supports the execution waves defined in `issues/kanban-structure.md`.\r\n- Create this before bulk feature delivery starts.",
+        "source":  "issues/epics/00-project-setup-and-architecture.md"
+    },
+    {
+        "title":  "[EPIC] Database Baseline",
+        "body":  "## Summary\r\nBaseline database epic for the project-management system planning backlog.\r\n\r\n## Notes\r\n- Local source: `\r\nissues/epics/01-database-baseline.md\r\n`\r\n- This epic supports the execution waves defined in `issues/kanban-structure.md`.\r\n- Create this before bulk feature delivery starts.",
+        "source":  "issues/epics/01-database-baseline.md"
+    },
+    {
+        "title":  "[EPIC] Backend Baseline",
+        "body":  "## Summary\r\nBaseline backend epic for the project-management system planning backlog.\r\n\r\n## Notes\r\n- Local source: `\r\nissues/epics/02-backend-baseline.md\r\n`\r\n- This epic supports the execution waves defined in `issues/kanban-structure.md`.\r\n- Create this before bulk feature delivery starts.",
+        "source":  "issues/epics/02-backend-baseline.md"
+    },
+    {
+        "title":  "[EPIC] Frontend Baseline",
+        "body":  "## Summary\r\nBaseline frontend epic for the project-management system planning backlog.\r\n\r\n## Notes\r\n- Local source: `\r\nissues/epics/03-frontend-baseline.md\r\n`\r\n- This epic supports the execution waves defined in `issues/kanban-structure.md`.\r\n- Create this before bulk feature delivery starts.",
+        "source":  "issues/epics/03-frontend-baseline.md"
+    },
+    {
+        "title":  "[EPIC] Testing Baseline",
+        "body":  "## Summary\r\nBaseline testing epic for the project-management system planning backlog.\r\n\r\n## Notes\r\n- Local source: `\r\nissues/epics/04-testing-baseline.md\r\n`\r\n- This epic supports the execution waves defined in `issues/kanban-structure.md`.\r\n- Create this before bulk feature delivery starts.",
+        "source":  "issues/epics/04-testing-baseline.md"
+    },
+    {
+        "title":  "[US-001] User Login",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-001\r\n: \r\nUser Login\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n1. Authentication and Session Management\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nNone\r\n- Local source: `\r\nissues/stories/us-001-user-login.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-001-user-login.md"
+    },
+    {
+        "title":  "[US-002] Forced First-Login Password Reset",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-002\r\n: \r\nForced First-Login Password Reset\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n1. Authentication and Session Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-002-forced-first-login-password-reset.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-002-forced-first-login-password-reset.md"
+    },
+    {
+        "title":  "[US-003] Logout",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-003\r\n: \r\nLogout\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n1. Authentication and Session Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-003-logout.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-003-logout.md"
+    },
+    {
+        "title":  "[US-004] Session Expiration",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-004\r\n: \r\nSession Expiration\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n1. Authentication and Session Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-004-session-expiration.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-004-session-expiration.md"
+    },
+    {
+        "title":  "[US-005] Create User",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-005\r\n: \r\nCreate User\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n2. Admin User Management\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-005-create-user.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-005-create-user.md"
+    },
+    {
+        "title":  "[US-006] Update User",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-006\r\n: \r\nUpdate User\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n2. Admin User Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-005\r\n- Local source: `\r\nissues/stories/us-006-update-user.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-006-update-user.md"
+    },
+    {
+        "title":  "[US-007] Reset User Password",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-007\r\n: \r\nReset User Password\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n2. Admin User Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-005\r\n- Local source: `\r\nissues/stories/us-007-reset-user-password.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-007-reset-user-password.md"
+    },
+    {
+        "title":  "[US-008] Deactivate User",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-008\r\n: \r\nDeactivate User\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n2. Admin User Management\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-005\r\n- Local source: `\r\nissues/stories/us-008-deactivate-user.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-008-deactivate-user.md"
+    },
+    {
+        "title":  "[US-009] Create Project",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-009\r\n: \r\nCreate Project\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n3. Projects\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-009-create-project.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-009-create-project.md"
+    },
+    {
+        "title":  "[US-010] Immutable Project Code",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-010\r\n: \r\nImmutable Project Code\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n3. Projects\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009\r\n- Local source: `\r\nissues/stories/us-010-immutable-project-code.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-010-immutable-project-code.md"
+    },
+    {
+        "title":  "[US-011] View Project",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-011\r\n: \r\nView Project\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n3. Projects\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009\r\n- Local source: `\r\nissues/stories/us-011-view-project.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-011-view-project.md"
+    },
+    {
+        "title":  "[US-012] Edit Project",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-012\r\n: \r\nEdit Project\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n3. Projects\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009, US-011\r\n- Local source: `\r\nissues/stories/us-012-edit-project.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-012-edit-project.md"
+    },
+    {
+        "title":  "[US-013] Delete Project With Confirmation",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-013\r\n: \r\nDelete Project With Confirmation\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n3. Projects\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009, US-011\r\n- Local source: `\r\nissues/stories/us-013-delete-project-with-confirmation.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-013-delete-project-with-confirmation.md"
+    },
+    {
+        "title":  "[US-014] Add Project Member",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-014\r\n: \r\nAdd Project Member\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n4. Project Memberships and Roles\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009, US-005\r\n- Local source: `\r\nissues/stories/us-014-add-project-member.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-014-add-project-member.md"
+    },
+    {
+        "title":  "[US-015] Change Project Member Role",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-015\r\n: \r\nChange Project Member Role\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n4. Project Memberships and Roles\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-014\r\n- Local source: `\r\nissues/stories/us-015-change-project-member-role.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-015-change-project-member-role.md"
+    },
+    {
+        "title":  "[US-016] Remove Project Member",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-016\r\n: \r\nRemove Project Member\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n4. Project Memberships and Roles\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-014\r\n- Local source: `\r\nissues/stories/us-016-remove-project-member.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-016-remove-project-member.md"
+    },
+    {
+        "title":  "[US-017] Create Task",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-017\r\n: \r\nCreate Task\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-009, US-014\r\n- Local source: `\r\nissues/stories/us-017-create-task.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-017-create-task.md"
+    },
+    {
+        "title":  "[US-018] Atomic Task Numbering",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-018\r\n: \r\nAtomic Task Numbering\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-018-atomic-task-numbering.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-018-atomic-task-numbering.md"
+    },
+    {
+        "title":  "[US-019] View Task",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-019\r\n: \r\nView Task\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-019-view-task.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-019-view-task.md"
+    },
+    {
+        "title":  "[US-020] Update Task Planning Fields",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-020\r\n: \r\nUpdate Task Planning Fields\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-020-update-task-planning-fields.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-020-update-task-planning-fields.md"
+    },
+    {
+        "title":  "[US-021] Team Member Updates Task Description",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-021\r\n: \r\nTeam Member Updates Task Description\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017, US-014\r\n- Local source: `\r\nissues/stories/us-021-team-member-updates-task-description.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-021-team-member-updates-task-description.md"
+    },
+    {
+        "title":  "[US-022] Delete Task",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-022\r\n: \r\nDelete Task\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n5. Task Management\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-022-delete-task.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-022-delete-task.md"
+    },
+    {
+        "title":  "[US-023] Create Subtask",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-023\r\n: \r\nCreate Subtask\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n6. Subtasks\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-023-create-subtask.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-023-create-subtask.md"
+    },
+    {
+        "title":  "[US-024] Parent Completion Requires Completed Subtasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-024\r\n: \r\nParent Completion Requires Completed Subtasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n6. Subtasks\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-023, US-026\r\n- Local source: `\r\nissues/stories/us-024-parent-completion-requires-completed-subtasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-024-parent-completion-requires-completed-subtasks.md"
+    },
+    {
+        "title":  "[US-025] Reopen Parent When Subtask Reopens",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-025\r\n: \r\nReopen Parent When Subtask Reopens\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n6. Subtasks\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-023, US-026\r\n- Local source: `\r\nissues/stories/us-025-reopen-parent-when-subtask-reopens.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-025-reopen-parent-when-subtask-reopens.md"
+    },
+    {
+        "title":  "[US-026] Change Task Status",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-026\r\n: \r\nChange Task Status\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n7. Statuses and Workflow\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017, US-028\r\n- Local source: `\r\nissues/stories/us-026-change-task-status.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-026-change-task-status.md"
+    },
+    {
+        "title":  "[US-027] Prevent Blocked Task Progression",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-027\r\n: \r\nPrevent Blocked Task Progression\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n7. Statuses and Workflow\r\n- Wave: \r\nUnassigned\r\n- Depends on: \r\nUS-026, US-029, US-031\r\n- Local source: `\r\nissues/stories/us-027-prevent-blocked-task-progression.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-027-prevent-blocked-task-progression.md"
+    },
+    {
+        "title":  "[US-028] Database-Driven Statuses",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-028\r\n: \r\nDatabase-Driven Statuses\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n7. Statuses and Workflow\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-028-database-driven-statuses.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-028-database-driven-statuses.md"
+    },
+    {
+        "title":  "[US-029] Add Dependency",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-029\r\n: \r\nAdd Dependency\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n8. Dependencies and Blocking\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-017, US-030, US-069\r\n- Local source: `\r\nissues/stories/us-029-add-dependency.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-029-add-dependency.md"
+    },
+    {
+        "title":  "[US-030] Prevent Circular Dependencies",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-030\r\n: \r\nPrevent Circular Dependencies\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n8. Dependencies and Blocking\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-030-prevent-circular-dependencies.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-030-prevent-circular-dependencies.md"
+    },
+    {
+        "title":  "[US-031] Compute Blocked State",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-031\r\n: \r\nCompute Blocked State\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n8. Dependencies and Blocking\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-029, US-026\r\n- Local source: `\r\nissues/stories/us-031-compute-blocked-state.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-031-compute-blocked-state.md"
+    },
+    {
+        "title":  "[US-032] Remove Dependency",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-032\r\n: \r\nRemove Dependency\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n8. Dependencies and Blocking\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-029\r\n- Local source: `\r\nissues/stories/us-032-remove-dependency.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-032-remove-dependency.md"
+    },
+    {
+        "title":  "[US-033] Add Comment",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-033\r\n: \r\nAdd Comment\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n9. Comments and Real-Time Updates\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-019, US-001\r\n- Local source: `\r\nissues/stories/us-033-add-comment.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-033-add-comment.md"
+    },
+    {
+        "title":  "[US-034] Immutable Comments",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-034\r\n: \r\nImmutable Comments\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n9. Comments and Real-Time Updates\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-033\r\n- Local source: `\r\nissues/stories/us-034-immutable-comments.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-034-immutable-comments.md"
+    },
+    {
+        "title":  "[US-035] Real-Time Comment Broadcast",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-035\r\n: \r\nReal-Time Comment Broadcast\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n9. Comments and Real-Time Updates\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-033\r\n- Local source: `\r\nissues/stories/us-035-real-time-comment-broadcast.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-035-real-time-comment-broadcast.md"
+    },
+    {
+        "title":  "[US-036] WebSocket Reconnection",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-036\r\n: \r\nWebSocket Reconnection\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n9. Comments and Real-Time Updates\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-035\r\n- Local source: `\r\nissues/stories/us-036-websocket-reconnection.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-036-websocket-reconnection.md"
+    },
+    {
+        "title":  "[US-037] Receive Task Notifications",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-037\r\n: \r\nReceive Task Notifications\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n10. Notifications\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-017, US-040\r\n- Local source: `\r\nissues/stories/us-037-receive-task-notifications.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-037-receive-task-notifications.md"
+    },
+    {
+        "title":  "[US-038] View Notifications",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-038\r\n: \r\nView Notifications\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n10. Notifications\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-037\r\n- Local source: `\r\nissues/stories/us-038-view-notifications.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-038-view-notifications.md"
+    },
+    {
+        "title":  "[US-039] Mark Notifications Read",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-039\r\n: \r\nMark Notifications Read\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n10. Notifications\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-038\r\n- Local source: `\r\nissues/stories/us-039-mark-notifications-read.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-039-mark-notifications-read.md"
+    },
+    {
+        "title":  "[US-040] Record Task Activity",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-040\r\n: \r\nRecord Task Activity\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n11. Activity Logs\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-040-record-task-activity.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-040-record-task-activity.md"
+    },
+    {
+        "title":  "[US-041] View Task Activity",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-041\r\n: \r\nView Task Activity\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n11. Activity Logs\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-040, US-019\r\n- Local source: `\r\nissues/stories/us-041-view-task-activity.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-041-view-task-activity.md"
+    },
+    {
+        "title":  "[US-042] View Project Activity",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-042\r\n: \r\nView Project Activity\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n11. Activity Logs\r\n- Wave: \r\nWave 2\r\n- Depends on: \r\nUS-009, US-040\r\n- Local source: `\r\nissues/stories/us-042-view-project-activity.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-042-view-project-activity.md"
+    },
+    {
+        "title":  "[US-043] Search Project Tasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-043\r\n: \r\nSearch Project Tasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n12. Search, Filtering, and Pagination\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-017, US-045\r\n- Local source: `\r\nissues/stories/us-043-search-project-tasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-043-search-project-tasks.md"
+    },
+    {
+        "title":  "[US-044] Filter Project Tasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-044\r\n: \r\nFilter Project Tasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n12. Search, Filtering, and Pagination\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-017, US-045\r\n- Local source: `\r\nissues/stories/us-044-filter-project-tasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-044-filter-project-tasks.md"
+    },
+    {
+        "title":  "[US-045] Paginated Lists",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-045\r\n: \r\nPaginated Lists\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n12. Search, Filtering, and Pagination\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-011, US-019\r\n- Local source: `\r\nissues/stories/us-045-paginated-lists.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-045-paginated-lists.md"
+    },
+    {
+        "title":  "[US-046] View Kanban Board",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-046\r\n: \r\nView Kanban Board\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n13. Kanban Board\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-017, US-026, US-045\r\n- Local source: `\r\nissues/stories/us-046-view-kanban-board.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-046-view-kanban-board.md"
+    },
+    {
+        "title":  "[US-047] Drag Task Between Kanban Columns",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-047\r\n: \r\nDrag Task Between Kanban Columns\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n13. Kanban Board\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-046, US-026, US-027\r\n- Local source: `\r\nissues/stories/us-047-drag-task-between-kanban-columns.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-047-drag-task-between-kanban-columns.md"
+    },
+    {
+        "title":  "[US-048] View Gantt Timeline",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-048\r\n: \r\nView Gantt Timeline\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n14. Gantt Chart\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-017, US-045\r\n- Local source: `\r\nissues/stories/us-048-view-gantt-timeline.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-048-view-gantt-timeline.md"
+    },
+    {
+        "title":  "[US-049] Read-Only Gantt Interaction",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-049\r\n: \r\nRead-Only Gantt Interaction\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n14. Gantt Chart\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-048\r\n- Local source: `\r\nissues/stories/us-049-read-only-gantt-interaction.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-049-read-only-gantt-interaction.md"
+    },
+    {
+        "title":  "[US-050] Gantt Conflict Warning",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-050\r\n: \r\nGantt Conflict Warning\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n14. Gantt Chart\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-048, US-071\r\n- Local source: `\r\nissues/stories/us-050-gantt-conflict-warning.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-050-gantt-conflict-warning.md"
+    },
+    {
+        "title":  "[US-051] View My Assigned Tasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-051\r\n: \r\nView My Assigned Tasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n15. My Tasks\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-017, US-045\r\n- Local source: `\r\nissues/stories/us-051-view-my-assigned-tasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-051-view-my-assigned-tasks.md"
+    },
+    {
+        "title":  "[US-052] Sort My Tasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-052\r\n: \r\nSort My Tasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n15. My Tasks\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-051\r\n- Local source: `\r\nissues/stories/us-052-sort-my-tasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-052-sort-my-tasks.md"
+    },
+    {
+        "title":  "[US-053] Use Database-Driven Priorities",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-053\r\n: \r\nUse Database-Driven Priorities\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n16. Priorities and Metadata\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-053-use-database-driven-priorities.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-053-use-database-driven-priorities.md"
+    },
+    {
+        "title":  "[US-054] View Workflow Metadata",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-054\r\n: \r\nView Workflow Metadata\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n16. Priorities and Metadata\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-028, US-053\r\n- Local source: `\r\nissues/stories/us-054-view-workflow-metadata.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-054-view-workflow-metadata.md"
+    },
+    {
+        "title":  "[US-055] Enforce Backend Authorization",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-055\r\n: \r\nEnforce Backend Authorization\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n17. Authorization and Security\r\n- Wave: \r\nWave 0\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-055-enforce-backend-authorization.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-055-enforce-backend-authorization.md"
+    },
+    {
+        "title":  "[US-056] Admin Override With Invariants",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-056\r\n: \r\nAdmin Override With Invariants\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n17. Authorization and Security\r\n- Wave: \r\nWave 6\r\n- Depends on: \r\nUS-055\r\n- Local source: `\r\nissues/stories/us-056-admin-override-with-invariants.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-056-admin-override-with-invariants.md"
+    },
+    {
+        "title":  "[US-057] CSRF Protection",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-057\r\n: \r\nCSRF Protection\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n17. Authorization and Security\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-057-csrf-protection.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-057-csrf-protection.md"
+    },
+    {
+        "title":  "[US-058] Rate-Limit Authentication Endpoints",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-058\r\n: \r\nRate-Limit Authentication Endpoints\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n17. Authorization and Security\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-058-rate-limit-authentication-endpoints.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-058-rate-limit-authentication-endpoints.md"
+    },
+    {
+        "title":  "[US-059] Handle Optimistic Lock Conflict",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-059\r\n: \r\nHandle Optimistic Lock Conflict\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n18. Frontend Error and State Handling\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-020, US-026\r\n- Local source: `\r\nissues/stories/us-059-handle-optimistic-lock-conflict.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-059-handle-optimistic-lock-conflict.md"
+    },
+    {
+        "title":  "[US-060] Handle Loading, Empty, and Error States",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-060\r\n: \r\nHandle Loading, Empty, and Error States\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n18. Frontend Error and State Handling\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-011, US-019\r\n- Local source: `\r\nissues/stories/us-060-handle-loading-empty-and-error-states.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-060-handle-loading-empty-and-error-states.md"
+    },
+    {
+        "title":  "[US-061] Hide Soft-Deleted Tasks",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-061\r\n: \r\nHide Soft-Deleted Tasks\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n19. Soft Deletion and Data Preservation\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-022\r\n- Local source: `\r\nissues/stories/us-061-hide-soft-deleted-tasks.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-061-hide-soft-deleted-tasks.md"
+    },
+    {
+        "title":  "[US-062] Preserve Historical References",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-062\r\n: \r\nPreserve Historical References\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n19. Soft Deletion and Data Preservation\r\n- Wave: \r\nWave 5\r\n- Depends on: \r\nUS-061, US-040\r\n- Local source: `\r\nissues/stories/us-062-preserve-historical-references.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-062-preserve-historical-references.md"
+    },
+    {
+        "title":  "[US-063] Daily Database Backup",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-063\r\n: \r\nDaily Database Backup\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n20. Backup, Recovery, and Operations\r\n- Wave: \r\nWave 6\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-063-daily-database-backup.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-063-daily-database-backup.md"
+    },
+    {
+        "title":  "[US-064] Redis Recovery Behavior",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-064\r\n: \r\nRedis Recovery Behavior\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n20. Backup, Recovery, and Operations\r\n- Wave: \r\nWave 6\r\n- Depends on: \r\nUS-035\r\n- Local source: `\r\nissues/stories/us-064-redis-recovery-behavior.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-064-redis-recovery-behavior.md"
+    },
+    {
+        "title":  "[US-065] No Public Registration",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-065\r\n: \r\nNo Public Registration\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n21. MVP Boundary Stories\r\n- Wave: \r\nWave 1\r\n- Depends on: \r\nUS-001\r\n- Local source: `\r\nissues/stories/us-065-no-public-registration.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-065-no-public-registration.md"
+    },
+    {
+        "title":  "[US-066] No Email Notifications in MVP",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-066\r\n: \r\nNo Email Notifications in MVP\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n21. MVP Boundary Stories\r\n- Wave: \r\nWave 6\r\n- Depends on: \r\nUS-037\r\n- Local source: `\r\nissues/stories/us-066-no-email-notifications-in-mvp.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-066-no-email-notifications-in-mvp.md"
+    },
+    {
+        "title":  "[US-067] No Attachments in MVP",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-067\r\n: \r\nNo Attachments in MVP\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n21. MVP Boundary Stories\r\n- Wave: \r\nWave 6\r\n- Depends on: \r\nUS-033\r\n- Local source: `\r\nissues/stories/us-067-no-attachments-in-mvp.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-067-no-attachments-in-mvp.md"
+    },
+    {
+        "title":  "[US-068] No Cross-Project Dependencies",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-068\r\n: \r\nNo Cross-Project Dependencies\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n21. MVP Boundary Stories\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-029\r\n- Local source: `\r\nissues/stories/us-068-no-cross-project-dependencies.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-068-no-cross-project-dependencies.md"
+    },
+    {
+        "title":  "[US-069] Enforce Task-Project Ownership",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-069\r\n: \r\nEnforce Task-Project Ownership\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n22. Key Invariant Coverage\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-017\r\n- Local source: `\r\nissues/stories/us-069-enforce-task-project-ownership.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-069-enforce-task-project-ownership.md"
+    },
+    {
+        "title":  "[US-070] Enforce Active Project Members for Assignments",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-070\r\n: \r\nEnforce Active Project Members for Assignments\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n22. Key Invariant Coverage\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-014, US-017\r\n- Local source: `\r\nissues/stories/us-070-enforce-active-project-members-for-assignments.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-070-enforce-active-project-members-for-assignments.md"
+    },
+    {
+        "title":  "[US-071] Enforce Overdue Definition",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-071\r\n: \r\nEnforce Overdue Definition\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n22. Key Invariant Coverage\r\n- Wave: \r\nWave 3\r\n- Depends on: \r\nUS-020, US-026\r\n- Local source: `\r\nissues/stories/us-071-enforce-overdue-definition.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-071-enforce-overdue-definition.md"
+    },
+    {
+        "title":  "[US-072] Enforce Comment Permanence",
+        "body":  "## Summary\r\nPlanning issue for \r\nUS-072\r\n: \r\nEnforce Comment Permanence\r\n.\r\n\r\n## Planning Metadata\r\n- Area: \r\n22. Key Invariant Coverage\r\n- Wave: \r\nWave 4\r\n- Depends on: \r\nUS-033\r\n- Local source: `\r\nissues/stories/us-072-enforce-comment-permanence.md\r\n`\r\n\r\n## Delivery Notes\r\n- Use the local source file for the detailed user story, acceptance criteria, and implementation breakdown.\r\n- Use `issues/kanban-structure.md` for board flow and WIP rules.\r\n- Use `issues/dependency-map.md` before starting any dependency-heavy story.\r\n- Break implementation into database, backend, frontend, and test slices as defined in the local source.",
+        "source":  "issues/stories/us-072-enforce-comment-permanence.md"
+    }
+]

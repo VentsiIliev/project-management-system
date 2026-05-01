@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fullstack Implementer"
+  short_description: "Implement backend and frontend vertical slices."
+  default_prompt: "Use $fullstack-implementation to implement the current story across backend and frontend using the approved repo architecture."
