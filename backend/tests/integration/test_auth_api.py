@@ -700,6 +700,62 @@ def test_deactivated_users_cannot_log_in_after_an_admin_deactivates_them():
     }
 
 
+def test_admin_deactivation_revokes_the_targets_existing_session():
+    admin_user = create_user(
+        email="admin.deactivate-session@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="active.session.target@example.com")
+    target_client = APIClient()
+    target_client.force_login(managed_user)
+    before_response = target_client.get("/api/auth/me")
+
+    admin_client = APIClient()
+    admin_client.force_login(admin_user)
+    deactivate_response = admin_client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"is_active": False},
+        format="json",
+    )
+
+    after_response = target_client.get("/api/auth/me")
+
+    assert before_response.status_code == 200
+    assert deactivate_response.status_code == 200
+    assert after_response.status_code == 401
+    assert after_response.json() == {
+        "error": {
+            "code": "UNAUTHENTICATED",
+            "message": "Authentication required.",
+            "details": {},
+        }
+    }
+
+
+def test_admin_deactivation_keeps_the_user_record_and_does_not_soft_delete_it():
+    admin_user = create_user(
+        email="admin.deactivate-soft-delete@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="still.present@example.com")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"is_active": False},
+        format="json",
+    )
+
+    managed_user.refresh_from_db()
+
+    assert response.status_code == 200
+    assert managed_user.is_active is False
+    assert managed_user.deleted_at is None
+
+
 def test_admin_can_reset_a_users_password_and_require_a_forced_reset_on_next_login():
     admin_user = create_user(
         email="admin.reset@example.com",

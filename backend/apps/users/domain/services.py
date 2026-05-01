@@ -116,6 +116,20 @@ def preserve_existing_user_sessions(*, user) -> None:
         session.save(update_fields=["session_data", "expire_date"])
 
 
+def revoke_existing_user_sessions(*, user) -> None:
+    session_user_id = str(user.pk)
+    active_sessions = Session.objects.filter(expire_date__gt=timezone.now())
+    sessions_to_delete = []
+
+    for session in active_sessions:
+        session_data = session.get_decoded()
+        if session_data.get("_auth_user_id") == session_user_id:
+            sessions_to_delete.append(session.pk)
+
+    if sessions_to_delete:
+        Session.objects.filter(pk__in=sessions_to_delete).delete()
+
+
 @transaction.atomic
 def create_user_account(*, actor, name: str, email: str, temporary_password: str, is_active: bool = True):
     user_model = get_user_model()
@@ -169,6 +183,7 @@ def update_user_account(
         raise UserNotFoundError
 
     update_fields = []
+    should_revoke_sessions = False
 
     if name is not None:
         user.name = name
@@ -183,11 +198,15 @@ def update_user_account(
         update_fields.append("email")
 
     if is_active is not None:
+        should_revoke_sessions = user.is_active and not is_active
         user.is_active = is_active
         update_fields.append("is_active")
 
     if update_fields:
         user.save(update_fields=[*update_fields, "updated_at"])
+
+    if should_revoke_sessions:
+        revoke_existing_user_sessions(user=user)
 
     return user
 
