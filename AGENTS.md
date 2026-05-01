@@ -18,6 +18,7 @@ This repository is planning-first. Agents working here should treat the Markdown
 12. Keep the local `issues/` backlog and GitHub issues in sync using `issues/sync-policy.md`.
 13. Use `issues/github-label-policy.md` for the active GitHub label names.
 14. Agents may mark work as implemented or owner-review, but only the repository owner may mark work done or reviewed.
+15. After finishing an issue implementation slice and syncing its issue state, agents should create the corresponding PR in the same pass unless the owner explicitly says not to.
 
 ## Specialist Roles
 

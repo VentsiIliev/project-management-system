@@ -377,6 +377,137 @@ def test_authenticated_requests_refresh_the_session_timeout_cookie():
     assert response.cookies["sessionid"]["expires"]
 
 
+def test_admin_can_create_a_user_with_a_temporary_password():
+    admin_user = create_user(
+        email="admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "New User",
+            "email": "new.user@example.com",
+            "temporary_password": "TempPassword123!",
+            "is_active": True,
+        },
+        format="json",
+    )
+
+    created_user = get_user_model().all_objects.get(email="new.user@example.com")
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "user": {
+            "id": str(created_user.id),
+            "email": "new.user@example.com",
+            "name": "New User",
+            "is_active": True,
+            "is_admin": False,
+            "must_reset_password": True,
+        }
+    }
+    assert created_user.is_active is True
+    assert created_user.is_admin is False
+    assert created_user.must_reset_password is True
+    assert created_user.check_password("TempPassword123!") is True
+    assert created_user.password != "TempPassword123!"
+
+
+def test_create_user_rejects_duplicate_email_with_a_validation_error():
+    admin_user = create_user(
+        email="admin.duplicate@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    create_user(email="existing@example.com")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Existing Clone",
+            "email": "existing@example.com",
+            "temporary_password": "TempPassword123!",
+            "is_active": True,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "email": ["A user with this email already exists."],
+            },
+        }
+    }
+
+
+def test_create_user_denies_non_admin_users():
+    standard_user = create_user(
+        email="member@example.com",
+        is_admin=False,
+        must_reset_password=False,
+    )
+    client = APIClient()
+    client.force_login(standard_user)
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Denied User",
+            "email": "denied@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Admin access required."}
+
+
+def test_create_user_validates_the_temporary_password_against_the_password_policy():
+    admin_user = create_user(
+        email="admin.password@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Weak Password User",
+            "email": "weak.password@example.com",
+            "temporary_password": "short",
+            "is_active": True,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "temporary_password": [
+                    "This password is too short. It must contain at least 8 characters."
+                ]
+            },
+        }
+    }
+    assert get_user_model().all_objects.filter(email="weak.password@example.com").exists() is False
+
+
 @override_settings(ROOT_URLCONF=__name__)
 def test_reset_required_user_is_blocked_from_protected_endpoints():
     user = create_user(email="blocked@example.com", must_reset_password=True)
