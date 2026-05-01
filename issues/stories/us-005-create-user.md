@@ -1,8 +1,21 @@
-﻿# US-005 - Create User  ## Metadata - Area: 2. Admin User Management - GitHub labels: `user-story`, `mvp`, `area:admin` - Suggested status: `Backlog` - Suggested wave: `Wave 0` - Depends on: US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin  
+# US-005 - Create User
+
+## Metadata
+
+- Area: 2. Admin User Management
+- GitHub labels: `user-story`, `mvp`, `area:admin`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 0`
+- Depends on: `US-001`
+- Builds on auth stack through: `US-004`
+
+## User Story
+
+**As an** Admin  
 **I want** to create user accounts  
 **So that** employees can access the system.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin  
 **When** I create a user with name, unique email, and valid temporary password  
@@ -14,43 +27,56 @@
 
 **Given** I am not an Admin  
 **When** I attempt to create a user  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/update user schema with UUID primary key, unique email, active flag, admin flag, reset flag, timestamps, soft delete.
-- [ ] Add migration and database constraints for required user fields.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement admin-only user endpoint/service logic.
-- [ ] Validate email uniqueness and password policy where relevant.
-- [ ] Apply soft-delete/deactivation rules without cascading assignment deletion.
-- [ ] Create activity/application logs for user management events.
+### Backend slice
 
-### Frontend/UI
-- [ ] Build admin user management form/table action states.
-- [ ] Show success/error feedback for create, update, deactivate, and reset operations.
+- [x] Add an admin-only create-user API endpoint in the `users` module.
+- [x] Keep request validation transport-level and user-creation rules in a domain service.
+- [x] Create the user with:
+  - normalized unique email
+  - active account by default
+  - `must_reset_password = true`
+  - password hashed through Django user APIs
+- [x] Reuse the existing password validation path so admin-set temporary passwords follow the same policy.
+- [x] Return a stable response payload with the created user's public fields needed for future admin UI work.
+- [x] Deny access for non-admin authenticated users.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Permission tests for admin-only access.
-- [ ] Integration tests for user create/update/deactivate/reset flows.
-- [ ] Regression tests that inactive/deleted users cannot log in.
+### Frontend slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] No dedicated admin UI in this slice.
+- [x] Defer admin screens and routes until there is an owned admin feature surface to attach them to.
+- [x] Keep the backend response contract explicit so a later admin UI story can integrate without revisiting create-user rules.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add backend integration coverage for successful admin user creation.
+- [x] Add backend coverage for duplicate-email validation.
+- [x] Add backend coverage for non-admin permission denial.
+- [x] Add backend coverage that the stored password is hashed and the created user must reset their password.
+- [x] Re-run the focused auth and user-management backend tests.
+
+## Dependency And Sequencing Notes
+
+- This story depends on the existing session-auth stack so admin identity is available server-side.
+- It should remain separate from:
+  - `US-006` update user
+  - `US-007` admin password reset
+  - `US-008` deactivate user
+  - broader admin list/detail UI work
+- The first valid slice is backend-led because the current frontend only exposes auth/system routing, not an admin workspace.
+
+## Definition Of Done
+
+- Admins can create users through the API with name, email, and temporary password.
+- New users are active and created with `must_reset_password = true`.
+- Duplicate emails return a structured validation error.
+- Non-admins cannot create users.
+- Backend tests cover the acceptance criteria and pass.
+
+## Open Notes
+
+- Activity logging for `USER_CREATED` is part of the broader observability/audit surface and can follow once that module exists.
+- This slice should not invent admin tables, forms, or navigation before the admin feature surface is introduced.

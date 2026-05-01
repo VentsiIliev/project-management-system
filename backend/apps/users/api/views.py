@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.domain.services import (
+    create_user_account,
+    DuplicateEmailError,
     InvalidCredentialsError,
     authenticate_user_session,
     force_reset_password,
@@ -17,10 +19,13 @@ from apps.users.domain.services import (
 )
 
 from .serializers import (
+    AdminUserSerializer,
+    CreateUserSerializer,
     ForceResetPasswordSerializer,
     LoginSerializer,
     SessionUserSerializer,
 )
+from .permissions import IsAdminUser
 
 
 def error_response(*, code: str, message: str, details: dict, status_code: int) -> Response:
@@ -169,3 +174,44 @@ class LogoutView(APIView):
             )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class AdminUserListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = CreateUserSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            created_user = create_user_account(
+                actor=request.user,
+                name=serializer.validated_data["name"],
+                email=serializer.validated_data["email"],
+                temporary_password=serializer.validated_data["temporary_password"],
+                is_active=serializer.validated_data["is_active"],
+            )
+        except DuplicateEmailError:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details={"email": ["A user with this email already exists."]},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except PasswordValidationFailedError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_data = AdminUserSerializer(created_user).data
+        return Response({"user": user_data}, status=status.HTTP_201_CREATED)

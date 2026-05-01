@@ -32,6 +32,10 @@ class PasswordValidationFailedError(Exception):
         self.details = details
 
 
+class DuplicateEmailError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class AuthenticatedSession:
     user: object
@@ -77,7 +81,7 @@ def logout_user_session(*, request) -> bool:
     return True
 
 
-def validate_user_password(*, user, password: str) -> None:
+def validate_user_password(*, user, password: str, field_name: str = "new_password") -> None:
     try:
         if getattr(settings, "AUTH_PASSWORD_VALIDATORS", None):
             validate_password(password, user=user)
@@ -88,7 +92,40 @@ def validate_user_password(*, user, password: str) -> None:
                 password_validators=DEFAULT_PASSWORD_VALIDATORS,
             )
     except ValidationError as exc:
-        raise PasswordValidationFailedError({"new_password": exc.messages}) from exc
+        raise PasswordValidationFailedError({field_name: exc.messages}) from exc
+
+
+@transaction.atomic
+def create_user_account(*, actor, name: str, email: str, temporary_password: str, is_active: bool = True):
+    user_model = get_user_model()
+    normalized_email = user_model.objects.normalize_email(email).lower()
+
+    if user_model.all_objects.filter(email__iexact=normalized_email).exists():
+        raise DuplicateEmailError
+
+    provisional_user = user_model(
+        email=normalized_email,
+        name=name,
+        is_active=is_active,
+        is_admin=False,
+        must_reset_password=True,
+    )
+    validate_user_password(
+        user=provisional_user,
+        password=temporary_password,
+        field_name="temporary_password",
+    )
+
+    created_user = user_model.all_objects.create_user(
+        email=normalized_email,
+        password=temporary_password,
+        name=name,
+        is_active=is_active,
+        is_admin=False,
+        must_reset_password=True,
+    )
+
+    return created_user
 
 
 @transaction.atomic
