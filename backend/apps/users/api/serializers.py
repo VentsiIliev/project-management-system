@@ -6,6 +6,10 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(trim_whitespace=False)
 
 
+class ForceResetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(trim_whitespace=False)
+
+
 class SessionUserSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     email = serializers.EmailField()

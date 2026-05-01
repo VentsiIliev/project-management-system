@@ -69,6 +69,48 @@ describe("auth flow", () => {
     expect(loginRequestHeaders.get("X-CSRFToken")).toBe("test-token");
   });
 
+  it("redirects to the reset-required shell when login returns a forced reset state", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+      jsonResponse({
+        body: {
+          user: {
+            id: "user-2",
+            email: "temp@example.com",
+            name: "Temp User",
+            is_admin: false,
+            must_reset_password: false,
+          },
+          requires_password_reset: true,
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/login"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(await screen.findByLabelText(/email/i), "temp@example.com");
+    await user.type(screen.getByLabelText(/password/i), "TempPassword123!");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /your temporary password must be replaced/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/temp user is signed in with/i),
+    ).toBeInTheDocument();
+  });
+
   it("shows the generic invalid credentials error", async () => {
     mockFetchSequence([
       jsonResponse({
@@ -151,5 +193,198 @@ describe("auth flow", () => {
         screen.queryByRole("heading", { name: /session established/i }),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("redirects reset-required users away from the login route", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: true,
+        },
+      }),
+    ]);
+
+    renderApp(["/login"]);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /your temporary password must be replaced/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /user login/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits a forced password reset and enters the authenticated shell", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: true,
+        },
+      }),
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/reset-password"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(
+      await screen.findByLabelText(/^new password$/i),
+      "NewPassword123!",
+    );
+    await user.type(
+      screen.getByLabelText(/^confirm new password$/i),
+      "NewPassword123!",
+    );
+    await user.click(screen.getByRole("button", { name: /set new password/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: /session established/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: /your temporary password must be replaced/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/force-reset-password");
+    const resetRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(resetRequestHeaders.get("X-CSRFToken")).toBe("test-token");
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ new_password: "NewPassword123!" }),
+    );
+  });
+
+  it("shows server-side reset validation errors on the form", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: true,
+        },
+      }),
+      jsonResponse({
+        status: 400,
+        body: {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid input",
+            details: {
+              new_password: ["This password is too common."],
+            },
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/reset-password"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(
+      await screen.findByLabelText(/^new password$/i),
+      "CommonPassword123!",
+    );
+    await user.type(
+      screen.getByLabelText(/^confirm new password$/i),
+      "CommonPassword123!",
+    );
+    await user.click(screen.getByRole("button", { name: /set new password/i }));
+
+    expect(
+      await screen.findByText("This password is too common."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /your temporary password must be replaced/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps reset route guards aligned after the forced reset succeeds", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: true,
+        },
+      }),
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "temp@example.com",
+          name: "Temp User",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/reset-password"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(
+      await screen.findByLabelText(/^new password$/i),
+      "AnotherPassword123!",
+    );
+    await user.type(
+      screen.getByLabelText(/^confirm new password$/i),
+      "AnotherPassword123!",
+    );
+    await user.click(screen.getByRole("button", { name: /set new password/i }));
+
+    await screen.findByRole("heading", { name: /session established/i });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", {
+          name: /set a permanent password/i,
+        }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("redirects non-reset users away from the reset-password route", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+    ]);
+
+    renderApp(["/reset-password"]);
+
+    expect(
+      await screen.findByRole("heading", { name: /session established/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: /your temporary password must be replaced/i,
+      }),
+    ).not.toBeInTheDocument();
   });
 });
