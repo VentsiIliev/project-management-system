@@ -25,6 +25,28 @@ export type ProjectMember = {
   role: ProjectMemberRole;
 };
 
+export type TaskStatus = {
+  name: string;
+};
+
+export type TaskAssignee = {
+  id: string;
+  name: string;
+};
+
+export type Task = {
+  id: string;
+  task_key: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  primary_assignee: TaskAssignee | null;
+  start_date: string | null;
+  deadline: string | null;
+  version: number;
+  created_at: string;
+};
+
 export type CreateProjectRequest = {
   name: string;
   code: string;
@@ -52,4 +74,12 @@ export type AddProjectMemberRequest = {
 
 export type UpdateProjectMemberRequest = {
   role: ProjectMemberRole;
+};
+
+export type CreateTaskRequest = {
+  title: string;
+  description?: string;
+  start_date?: string | null;
+  deadline?: string | null;
+  primary_assignee_id?: string | null;
 };

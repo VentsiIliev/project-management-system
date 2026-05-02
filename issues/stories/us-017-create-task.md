@@ -1,8 +1,19 @@
-﻿# US-017 - Create Task  ## Metadata - Area: 5. Task Management - GitHub labels: `user-story`, `mvp`, `area:tasks` - Suggested status: `Backlog` - Suggested wave: `Wave 0` - Depends on: US-009, US-014 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-017 - Create Task
+
+## Metadata
+- Area: 5. Task Management
+- GitHub labels: `user-story`, `mvp`, `area:tasks`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 0`
+- Depends on: US-009, US-014
+- Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.
+
+## User Story
+**As an** Admin or Project Manager  
 **I want** to create tasks  
 **So that** project work can be tracked.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to create tasks  
 **When** I create a task with valid fields  
@@ -18,45 +29,33 @@
 
 **Given** I am a Team Member  
 **When** I attempt to create a task  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Implementation Slice
+**Slice goal:** deliver the first reviewable task foundation that makes task work visible in the project workspace immediately after creation.  
+**Out of scope for this slice:** collaborators, subtasks, task detail route, status transitions, database-driven statuses and priorities, optimistic locking conflicts, activity logs, notifications, and search/filtering.
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [x] Add the first `tasks` model with project link, task number, immutable task key, title, description, default TODO status, optional primary assignee, start/deadline dates, version, and soft-delete column.
+- [x] Add `GET /api/projects/{project_id}/tasks` for visible project users so created tasks are visible immediately in the existing workspace.
+- [x] Add `POST /api/projects/{project_id}/tasks` for Admins and active Project Managers only.
+- [x] Generate the task key from immutable project code plus project-scoped task number.
+- [x] Reject create requests when the primary assignee is not an active project member.
+- [x] Reject create requests when deadline is earlier than start date.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [x] Add a project tasks panel to the existing project workspace.
+- [x] Show the current task list for the selected project.
+- [x] Add a create-task form for Admins and active Project Managers.
+- [x] Hide create controls for Team Members while keeping task visibility read-only.
+- [x] Show structured server validation feedback in the form.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Tests
+- [x] Backend integration tests cover visible task listing, successful create, permission denial, inactive/non-member assignee rejection, and date validation.
+- [x] Frontend tests cover task list loading, successful create from the workspace, and restricted Team Member behavior.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+### Definition Of Done
+- [x] A Project Manager or Admin can create a task and immediately see it in the selected project workspace.
+- [x] The created task defaults to TODO and gets a task key based on the project code.
+- [x] Team Members cannot create tasks.
+- [x] Invalid assignees are rejected with structured validation errors.

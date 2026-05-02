@@ -1,11 +1,13 @@
 import { apiRequest } from "../../../api/client";
 import {
   type AddProjectMemberRequest,
+  type CreateTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectRequest,
   type ProjectMember,
   type Project,
   type ProjectDetail,
+  type Task,
   type UpdateProjectMemberRequest,
   type UpdateProjectRequest,
 } from "../types";
@@ -84,4 +86,20 @@ export async function removeProjectMember(projectId: string, userId: string): Pr
   await apiRequest(`/projects/${projectId}/members/${userId}`, {
     method: "DELETE",
   });
+}
+
+export async function getProjectTasks(projectId: string): Promise<Task[]> {
+  const response = await apiRequest<{ tasks: Task[] }>(`/projects/${projectId}/tasks`);
+  return response.tasks;
+}
+
+export async function createProjectTask(
+  projectId: string,
+  payload: CreateTaskRequest,
+): Promise<Task> {
+  const response = await apiRequest<{ task: Task }>(`/projects/${projectId}/tasks`, {
+    body: JSON.stringify(payload),
+    method: "POST",
+  });
+  return response.task;
 }
