@@ -451,6 +451,18 @@ textarea {
   margin: 0;
 }
 
+.project-summary__rule {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-strong);
+}
+
+.project-edit-panel {
+  min-width: 0;
+}
+
 @media (min-width: 860px) {
   .screen__content {
     grid-template-columns: minmax(0, 1.3fr) minmax(22rem, 0.9fr);
@@ -473,6 +485,10 @@ textarea {
   }
 
   .project-create-panel {
+    grid-column: 1 / -1;
+  }
+
+  .project-edit-panel {
     grid-column: 1 / -1;
   }
 

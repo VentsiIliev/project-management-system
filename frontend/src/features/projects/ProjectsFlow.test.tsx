@@ -66,6 +66,7 @@ describe("projects flow", () => {
             task_counter: 0,
             start_date: "2026-05-01",
             end_date: "2026-06-01",
+            can_edit: false,
           },
         },
       }),
@@ -146,6 +147,7 @@ describe("projects flow", () => {
             task_counter: 0,
             start_date: "2026-05-01",
             end_date: "2026-06-01",
+            can_edit: true,
           },
         },
       }),
@@ -160,6 +162,7 @@ describe("projects flow", () => {
             task_counter: 0,
             start_date: "2026-05-01",
             end_date: "2026-06-01",
+            can_edit: true,
           },
         },
       }),
@@ -190,6 +193,7 @@ describe("projects flow", () => {
             task_counter: 0,
             start_date: "2026-05-01",
             end_date: "2026-06-01",
+            can_edit: true,
           },
         },
       }),
@@ -277,5 +281,131 @@ describe("projects flow", () => {
     expect(
       await screen.findByText("A project with this code already exists."),
     ).toBeInTheDocument();
+  });
+
+  it("edits a project from the detail workspace without exposing a mutable code field", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: true,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "user-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+            can_edit: true,
+          },
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform Updated",
+            code: "ENG",
+            description: "Updated project description",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-04",
+            end_date: "2026-06-10",
+            can_edit: true,
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    const editStartDateInput = (await screen.findAllByLabelText(/^start date$/i))[0]!;
+    const editEndDateInput = (await screen.findAllByLabelText(/^end date$/i))[0]!;
+    await user.clear(editStartDateInput);
+    await user.type(editStartDateInput, "2026-05-04");
+    await user.clear(editEndDateInput);
+    await user.type(editEndDateInput, "2026-06-10");
+    await user.click(screen.getAllByRole("button", { name: /save changes/i }).at(-1)!);
+
+    expect(await screen.findByText(/project updated/i)).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue("ENG")[0]).toHaveAttribute("readonly");
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/projects/project-1");
+    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("PATCH");
+  });
+
+  it("shows a read-only edit state for project members without edit permission", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-2",
+          email: "member@example.com",
+          name: "Team Member",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "owner-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "owner-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+            can_edit: false,
+          },
+        },
+      }),
+    ]);
+
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText(/read-only access/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
 from apps.projects.selectors import visible_projects_for_user
 
-from .policies import can_create_project
+from .policies import can_create_project, can_edit_project
 
 
 class ProjectCreatePermissionDeniedError(Exception):
@@ -25,6 +25,14 @@ class ProjectNotFoundError(Exception):
     pass
 
 
+class ProjectEditPermissionDeniedError(Exception):
+    pass
+
+
+class ProjectCodeImmutableError(Exception):
+    pass
+
+
 def list_projects_for_actor(*, actor):
     return list(visible_projects_for_user(user=actor))
 
@@ -33,6 +41,51 @@ def get_project_for_actor(*, actor, project_id):
     project = visible_projects_for_user(user=actor).filter(id=project_id).first()
     if project is None:
         raise ProjectNotFoundError
+
+    return project
+
+
+@transaction.atomic
+def update_project(
+    *,
+    actor,
+    project_id,
+    updates: dict,
+):
+    project = get_project_for_actor(actor=actor, project_id=project_id)
+
+    if not can_edit_project(user=actor, project=project):
+        raise ProjectEditPermissionDeniedError
+
+    if "code" in updates:
+        raise ProjectCodeImmutableError
+
+    next_start_date = updates.get("start_date", project.start_date)
+    next_end_date = updates.get("end_date", project.end_date)
+
+    if next_start_date and next_end_date and next_end_date < next_start_date:
+        raise InvalidProjectDateRangeError(
+            {"end_date": ["End date cannot be earlier than start date."]}
+        )
+
+    if "name" in updates:
+        project.name = updates["name"]
+    if "description" in updates:
+        project.description = updates["description"] or None
+    if "start_date" in updates:
+        project.start_date = updates["start_date"]
+    if "end_date" in updates:
+        project.end_date = updates["end_date"]
+
+    project.save(
+        update_fields=[
+            "name",
+            "description",
+            "start_date",
+            "end_date",
+            "updated_at",
+        ]
+    )
 
     return project
 

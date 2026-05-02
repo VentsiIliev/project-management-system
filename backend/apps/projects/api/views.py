@@ -11,10 +11,18 @@ from apps.projects.domain.services import (
     InvalidProjectDateRangeError,
     list_projects_for_actor,
     ProjectNotFoundError,
+    ProjectCodeImmutableError,
     ProjectCreatePermissionDeniedError,
+    ProjectEditPermissionDeniedError,
+    update_project,
 )
 
-from .serializers import CreateProjectSerializer, ProjectSerializer
+from .serializers import (
+    CreateProjectSerializer,
+    ProjectDetailSerializer,
+    ProjectSerializer,
+    UpdateProjectSerializer,
+)
 
 
 def error_response(*, code: str, message: str, details: dict, status_code: int) -> Response:
@@ -99,6 +107,56 @@ class ProjectDetailView(APIView):
             )
 
         return Response(
-            {"project": ProjectSerializer(project).data},
+            {"project": ProjectDetailSerializer(project, context={"user": request.user}).data},
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request, project_id):
+        serializer = UpdateProjectSerializer(data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            project = update_project(
+                actor=request.user,
+                project_id=project_id,
+                updates=serializer.validated_data,
+            )
+        except ProjectNotFoundError:
+            return error_response(
+                code="PROJECT_NOT_FOUND",
+                message="Project not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except ProjectEditPermissionDeniedError:
+            return error_response(
+                code="PROJECT_PERMISSION_DENIED",
+                message="You do not have permission to edit this project.",
+                details={},
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        except ProjectCodeImmutableError:
+            return error_response(
+                code="PROJECT_CODE_IMMUTABLE",
+                message="Project code cannot be changed.",
+                details={"code": ["Project code cannot be changed."]},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except InvalidProjectDateRangeError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"project": ProjectDetailSerializer(project, context={"user": request.user}).data},
             status=status.HTTP_200_OK,
         )
