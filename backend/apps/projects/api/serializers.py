@@ -19,6 +19,16 @@ class UpdateProjectSerializer(serializers.Serializer):
     end_date = serializers.DateField(required=False, allow_null=True)
 
 
+class DeleteProjectSerializer(serializers.Serializer):
+    confirm_project_delete = serializers.BooleanField(required=True)
+
+    def validate_confirm_project_delete(self, value):
+        if value is not True:
+            raise serializers.ValidationError("Project deletion confirmation is required.")
+
+        return value
+
+
 class ProjectSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     name = serializers.CharField()
@@ -32,6 +42,7 @@ class ProjectSerializer(serializers.Serializer):
 
 class ProjectDetailSerializer(ProjectSerializer):
     can_edit = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
 
     def get_can_edit(self, obj):
         user = self.context["user"]
@@ -40,3 +51,6 @@ class ProjectDetailSerializer(ProjectSerializer):
             role=ProjectMembershipRole.PROJECT_MANAGER,
             deleted_at__isnull=True,
         ).exists()
+
+    def get_can_delete(self, obj):
+        return self.get_can_edit(obj)

@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 
 from apps.projects.domain.services import (
     create_project,
+    delete_project,
     DuplicateProjectCodeError,
     get_project_for_actor,
     InvalidProjectDateRangeError,
@@ -13,12 +14,14 @@ from apps.projects.domain.services import (
     ProjectNotFoundError,
     ProjectCodeImmutableError,
     ProjectCreatePermissionDeniedError,
+    ProjectDeletePermissionDeniedError,
     ProjectEditPermissionDeniedError,
     update_project,
 )
 
 from .serializers import (
     CreateProjectSerializer,
+    DeleteProjectSerializer,
     ProjectDetailSerializer,
     ProjectSerializer,
     UpdateProjectSerializer,
@@ -160,3 +163,35 @@ class ProjectDetailView(APIView):
             {"project": ProjectDetailSerializer(project, context={"user": request.user}).data},
             status=status.HTTP_200_OK,
         )
+
+    def delete(self, request, project_id):
+        serializer = DeleteProjectSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            delete_project(
+                actor=request.user,
+                project_id=project_id,
+            )
+        except ProjectNotFoundError:
+            return error_response(
+                code="PROJECT_NOT_FOUND",
+                message="Project not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except ProjectDeletePermissionDeniedError:
+            return error_response(
+                code="PROJECT_PERMISSION_DENIED",
+                message="You do not have permission to delete this project.",
+                details={},
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

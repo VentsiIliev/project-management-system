@@ -11,6 +11,7 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { AppShellPage } from "../../auth/pages/AppShellPage";
 import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
+import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import { useUpdateProjectMutation } from "../hooks/useUpdateProjectMutation";
@@ -48,8 +49,12 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const projectsQuery = useProjectsQuery();
   const projectQuery = useProjectQuery(projectId);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
+  const deleteProjectMutation = useDeleteProjectMutation(projectId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
+  const [deleteConfirmationChecked, setDeleteConfirmationChecked] = useState(false);
+  const [deleteConfirmationError, setDeleteConfirmationError] = useState<string | null>(null);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
   const {
     formState: { errors },
     handleSubmit,
@@ -87,6 +92,9 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     : null;
   const updateProjectError = isApiError(updateProjectMutation.error)
     ? updateProjectMutation.error
+    : null;
+  const deleteProjectError = isApiError(deleteProjectMutation.error)
+    ? deleteProjectMutation.error
     : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
@@ -126,6 +134,15 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
         !serverEditCodeError
       ? updateProjectError.message
       : null;
+  const serverDeleteConfirmationError = getDetailMessages(
+    deleteProjectError?.details.confirm_project_delete,
+  )[0];
+  const serverDeleteFormError =
+    deleteProjectError &&
+    !serverDeleteConfirmationError &&
+    deleteProjectError.code !== "PROJECT_PERMISSION_DENIED"
+      ? deleteProjectError.message
+      : null;
 
   useEffect(() => {
     if (!projectQuery.data) {
@@ -145,6 +162,13 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       end_date: projectQuery.data.end_date ?? "",
     });
   }, [projectQuery.data, resetEditForm]);
+
+  useEffect(() => {
+    setDeleteConfirmationChecked(false);
+    setDeleteConfirmationError(null);
+    setShowDeleteSuccess(false);
+    deleteProjectMutation.reset();
+  }, [projectId]);
 
   return (
     <AppShellPage user={user}>
@@ -348,6 +372,98 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
               ) : null}
               <Button disabled={updateProjectMutation.isPending} type="submit">
                 {updateProjectMutation.isPending ? "Saving changes..." : "Save changes"}
+              </Button>
+            </form>
+          ) : null}
+        </Panel>
+
+        <Panel className="project-delete-panel">
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Delete project</h2>
+            <p className="panel-heading__body">
+              Remove this project from the active workspace only after an explicit confirmation step.
+            </p>
+          </div>
+          {!projectQuery.data ? (
+            <StatusMessage title="Project delete is unavailable">
+              Select a project detail route before deleting.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data && !projectQuery.data.can_delete ? (
+            <StatusMessage tone="warning" title="Delete is restricted">
+              Only Admins and active Project Managers can delete this project.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data?.can_delete ? (
+            <form
+              className="form-stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setShowDeleteSuccess(false);
+                deleteProjectMutation.reset();
+
+                if (!deleteConfirmationChecked) {
+                  setDeleteConfirmationError(
+                    "Project deletion confirmation is required before continuing.",
+                  );
+                  return;
+                }
+
+                setDeleteConfirmationError(null);
+                deleteProjectMutation.mutate(undefined, {
+                  onSuccess: () => {
+                    setShowDeleteSuccess(true);
+                    navigate("/");
+                  },
+                });
+              }}
+            >
+              <StatusMessage tone="warning" title="Destructive action">
+                Deleting a project removes it from the active workspace and also soft-deletes its memberships.
+              </StatusMessage>
+              <label className="checkbox-field" htmlFor="confirm-project-delete">
+                <input
+                  checked={deleteConfirmationChecked}
+                  className="checkbox-field__input"
+                  id="confirm-project-delete"
+                  onChange={(event) => {
+                    setDeleteConfirmationChecked(event.target.checked);
+                    if (event.target.checked) {
+                      setDeleteConfirmationError(null);
+                    }
+                  }}
+                  type="checkbox"
+                />
+                <span className="checkbox-field__label">
+                  I understand this will soft-delete this project and its memberships.
+                </span>
+              </label>
+              {deleteConfirmationError || serverDeleteConfirmationError ? (
+                <span className="field__error" role="alert">
+                  {deleteConfirmationError ?? serverDeleteConfirmationError}
+                </span>
+              ) : null}
+              {deleteProjectError?.code === "PROJECT_PERMISSION_DENIED" ? (
+                <StatusMessage tone="error" title="Permission denied">
+                  {deleteProjectError.message}
+                </StatusMessage>
+              ) : null}
+              {serverDeleteFormError ? (
+                <StatusMessage tone="error" title="Project delete failed">
+                  {serverDeleteFormError}
+                </StatusMessage>
+              ) : null}
+              {showDeleteSuccess ? (
+                <StatusMessage title="Project deleted">
+                  The project was removed from the active workspace.
+                </StatusMessage>
+              ) : null}
+              <Button
+                className="button button--danger"
+                disabled={deleteProjectMutation.isPending}
+                type="submit"
+              >
+                {deleteProjectMutation.isPending ? "Deleting project..." : "Delete project"}
               </Button>
             </form>
           ) : null}

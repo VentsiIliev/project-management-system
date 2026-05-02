@@ -1,10 +1,11 @@
 from django.db import transaction
+from django.utils import timezone
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
 from apps.projects.selectors import visible_projects_for_user
 
-from .policies import can_create_project, can_edit_project
+from .policies import can_create_project, can_delete_project, can_edit_project
 
 
 class ProjectCreatePermissionDeniedError(Exception):
@@ -30,6 +31,10 @@ class ProjectEditPermissionDeniedError(Exception):
 
 
 class ProjectCodeImmutableError(Exception):
+    pass
+
+
+class ProjectDeletePermissionDeniedError(Exception):
     pass
 
 
@@ -88,6 +93,25 @@ def update_project(
     )
 
     return project
+
+
+@transaction.atomic
+def delete_project(*, actor, project_id):
+    project = get_project_for_actor(actor=actor, project_id=project_id)
+
+    if not can_delete_project(user=actor, project=project):
+        raise ProjectDeletePermissionDeniedError
+
+    deleted_at = timezone.now()
+    ProjectMembership.all_objects.filter(
+        project=project,
+        deleted_at__isnull=True,
+    ).update(
+        deleted_at=deleted_at,
+        updated_at=deleted_at,
+    )
+    project.deleted_at = deleted_at
+    project.save(update_fields=["deleted_at", "updated_at"])
 
 
 @transaction.atomic

@@ -34,6 +34,8 @@
 
 1. `US-009 Create Project` says “Admin or Project Manager” can create a project, but the approved data model only defines a global Admin and project-scoped memberships. A project-scoped role cannot exist before a project exists, so there is no fully explicit spec path for “first project manager creates a project” without prior membership state. Working implementation for `US-009` uses: Admins may always create projects, and non-admin users may create projects only if they already hold at least one active `PROJECT_MANAGER` membership on another project.
 
+2. `US-013 Delete Project With Confirmation` depends on task, subtask, and activity-log preservation rules in the spec, but those modules are not implemented in the current branch stack yet. The working slice for `US-013` is: implement project and membership soft-delete now, keep the spec confirmation flag, hide deleted projects from normal reads, and defer deeper cascades to the future task and activity-log stories.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.
