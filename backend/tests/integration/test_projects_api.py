@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
@@ -7,6 +8,11 @@ from apps.projects.models import Project
 
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def clear_project_rate_limit_cache():
+    cache.clear()
 
 
 def create_user(**overrides):

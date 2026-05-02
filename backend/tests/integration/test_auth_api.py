@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import pytest
 from django.conf import settings
+from django.core.cache import cache
 from django.test import override_settings
 from django.urls import include, path
 from django.contrib.auth import get_user_model
@@ -15,6 +16,11 @@ from apps.users.api.permissions import IsAuthenticatedAndPasswordResetComplete
 
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def clear_auth_rate_limit_cache():
+    cache.clear()
 
 
 class ProtectedAppView(APIView):
@@ -296,6 +302,37 @@ def test_force_reset_password_succeeds_with_a_valid_csrf_token():
     assert response.status_code == 200
 
 
+@override_settings(AUTH_RATE_LIMIT_MAX_ATTEMPTS=2, AUTH_RATE_LIMIT_WINDOW_SECONDS=60)
+def test_failed_force_reset_attempts_are_rate_limited():
+    user = create_user(email="force-limit@example.com", must_reset_password=True)
+    client = APIClient()
+    client.force_login(user)
+
+    first_response = client.post(
+        "/api/auth/force-reset-password",
+        {"new_password": "short"},
+        format="json",
+        REMOTE_ADDR="10.0.2.1",
+    )
+    second_response = client.post(
+        "/api/auth/force-reset-password",
+        {"new_password": "short"},
+        format="json",
+        REMOTE_ADDR="10.0.2.1",
+    )
+    third_response = client.post(
+        "/api/auth/force-reset-password",
+        {"new_password": "short"},
+        format="json",
+        REMOTE_ADDR="10.0.2.1",
+    )
+
+    assert first_response.status_code == 400
+    assert second_response.status_code == 400
+    assert third_response.status_code == 429
+    assert third_response.json()["error"]["code"] == "RATE_LIMITED"
+
+
 def test_current_user_returns_authenticated_profile_for_reset_required_user():
     user = create_user(email="reset-bootstrap@example.com", must_reset_password=True)
     client = APIClient()
@@ -342,6 +379,109 @@ def test_login_succeeds_with_valid_csrf_token():
 
     assert response.status_code == 200
     assert response.json()["user"]["email"] == user.email
+
+
+@override_settings(AUTH_RATE_LIMIT_MAX_ATTEMPTS=2, AUTH_RATE_LIMIT_WINDOW_SECONDS=60)
+def test_failed_login_attempts_are_rate_limited_by_email():
+    user = create_user(email="limited@example.com")
+    client = APIClient()
+
+    first_response = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.0.1",
+    )
+    second_response = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.0.2",
+    )
+    third_response = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.0.3",
+    )
+
+    assert first_response.status_code == 401
+    assert second_response.status_code == 401
+    assert third_response.status_code == 429
+    assert third_response.json() == {
+        "error": {
+            "code": "RATE_LIMITED",
+            "message": "Too many authentication attempts. Try again later.",
+            "details": {"retry_after": 60},
+        }
+    }
+    assert third_response["Retry-After"] == "60"
+
+
+@override_settings(AUTH_RATE_LIMIT_MAX_ATTEMPTS=2, AUTH_RATE_LIMIT_WINDOW_SECONDS=60)
+def test_failed_login_attempts_are_rate_limited_by_ip():
+    client = APIClient()
+
+    first_response = client.post(
+        "/api/auth/login",
+        {"email": "missing.one@example.com", "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.10.10.10",
+    )
+    second_response = client.post(
+        "/api/auth/login",
+        {"email": "missing.two@example.com", "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.10.10.10",
+    )
+    third_response = client.post(
+        "/api/auth/login",
+        {"email": "missing.three@example.com", "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.10.10.10",
+    )
+
+    assert first_response.status_code == 401
+    assert second_response.status_code == 401
+    assert third_response.status_code == 429
+    assert third_response.json()["error"]["code"] == "RATE_LIMITED"
+
+
+@override_settings(AUTH_RATE_LIMIT_MAX_ATTEMPTS=3, AUTH_RATE_LIMIT_WINDOW_SECONDS=60)
+def test_successful_login_clears_accumulated_rate_limit_failures():
+    user = create_user(email="clear-limit@example.com")
+    client = APIClient()
+
+    first_failure = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.1.1",
+    )
+    second_failure = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.1.1",
+    )
+    success_response = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "valid-password"},
+        format="json",
+        REMOTE_ADDR="10.0.1.1",
+    )
+    after_success_failure = client.post(
+        "/api/auth/login",
+        {"email": user.email, "password": "wrong-password"},
+        format="json",
+        REMOTE_ADDR="10.0.1.1",
+    )
+
+    assert first_failure.status_code == 401
+    assert second_failure.status_code == 401
+    assert success_response.status_code == 200
+    assert after_success_failure.status_code == 401
+    assert after_success_failure.json()["error"]["code"] == "INVALID_CREDENTIALS"
 
 
 def test_admin_create_user_requires_a_valid_csrf_token():

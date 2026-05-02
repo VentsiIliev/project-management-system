@@ -15,6 +15,7 @@ from django.contrib.auth.password_validation import (
     validate_password,
 )
 from django.core.exceptions import ValidationError
+from django.core.cache import cache
 from django.db import transaction
 from django.contrib.sessions.models import Session
 from django.utils import timezone
@@ -42,6 +43,12 @@ class UserNotFoundError(Exception):
     pass
 
 
+class AuthenticationRateLimitedError(Exception):
+    def __init__(self, retry_after: int):
+        super().__init__("Authentication rate limit exceeded.")
+        self.retry_after = retry_after
+
+
 @dataclass(frozen=True)
 class AuthenticatedSession:
     user: object
@@ -54,6 +61,94 @@ DEFAULT_PASSWORD_VALIDATORS = [
     CommonPasswordValidator(),
     NumericPasswordValidator(),
 ]
+
+
+def get_client_ip(*, request) -> str:
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    return request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _rate_limit_key(*, scope: str, identifier: str) -> str:
+    return f"auth-rate-limit:{scope}:{identifier}"
+
+
+def _record_failed_attempt(*, scope: str, identifier: str) -> bool:
+    max_attempts = settings.AUTH_RATE_LIMIT_MAX_ATTEMPTS
+    window_seconds = settings.AUTH_RATE_LIMIT_WINDOW_SECONDS
+    key = _rate_limit_key(scope=scope, identifier=identifier)
+    attempts = cache.get(key, 0) + 1
+    cache.set(key, attempts, timeout=window_seconds)
+    return attempts > max_attempts
+
+
+def _is_rate_limited(*, scope: str, identifier: str) -> bool:
+    return cache.get(_rate_limit_key(scope=scope, identifier=identifier), 0) >= (
+        settings.AUTH_RATE_LIMIT_MAX_ATTEMPTS
+    )
+
+
+def _clear_rate_limit(*, scope: str, identifier: str) -> None:
+    cache.delete(_rate_limit_key(scope=scope, identifier=identifier))
+
+
+def ensure_login_not_rate_limited(*, request, email: str) -> None:
+    normalized_email = get_user_model().objects.normalize_email(email).lower()
+    client_ip = get_client_ip(request=request)
+    scoped_identifiers = (
+        _rate_limit_key(scope="login:ip", identifier=client_ip),
+        _rate_limit_key(scope="login:email", identifier=normalized_email),
+    )
+
+    if any(cache.get(identifier, 0) >= settings.AUTH_RATE_LIMIT_MAX_ATTEMPTS for identifier in scoped_identifiers):
+        raise AuthenticationRateLimitedError(settings.AUTH_RATE_LIMIT_WINDOW_SECONDS)
+
+
+def record_failed_login_attempt(*, request, email: str) -> None:
+    normalized_email = get_user_model().objects.normalize_email(email).lower()
+    client_ip = get_client_ip(request=request)
+    ip_limited = _record_failed_attempt(scope="login:ip", identifier=client_ip)
+    email_limited = _record_failed_attempt(scope="login:email", identifier=normalized_email)
+
+    if ip_limited or email_limited:
+        raise AuthenticationRateLimitedError(settings.AUTH_RATE_LIMIT_WINDOW_SECONDS)
+
+
+def clear_login_rate_limit(*, request, email: str) -> None:
+    normalized_email = get_user_model().objects.normalize_email(email).lower()
+    client_ip = get_client_ip(request=request)
+    _clear_rate_limit(scope="login:ip", identifier=client_ip)
+    _clear_rate_limit(scope="login:email", identifier=normalized_email)
+
+
+def ensure_force_reset_not_rate_limited(*, request, user) -> None:
+    client_ip = get_client_ip(request=request)
+    user_identifier = str(user.pk)
+
+    if (
+        _is_rate_limited(scope="force-reset:ip", identifier=client_ip)
+        or _is_rate_limited(scope="force-reset:user", identifier=user_identifier)
+    ):
+        raise AuthenticationRateLimitedError(settings.AUTH_RATE_LIMIT_WINDOW_SECONDS)
+
+
+def record_failed_force_reset_attempt(*, request, user) -> None:
+    client_ip = get_client_ip(request=request)
+    user_identifier = str(user.pk)
+    ip_limited = _record_failed_attempt(scope="force-reset:ip", identifier=client_ip)
+    user_limited = _record_failed_attempt(scope="force-reset:user", identifier=user_identifier)
+
+    if ip_limited or user_limited:
+        raise AuthenticationRateLimitedError(settings.AUTH_RATE_LIMIT_WINDOW_SECONDS)
+
+
+def clear_force_reset_rate_limit(*, request, user) -> None:
+    client_ip = get_client_ip(request=request)
+    user_identifier = str(user.pk)
+    _clear_rate_limit(scope="force-reset:ip", identifier=client_ip)
+    _clear_rate_limit(scope="force-reset:user", identifier=user_identifier)
 
 
 def serialize_session_user(user) -> dict[str, str | bool]:
@@ -240,6 +335,7 @@ def admin_reset_user_password(*, actor, user_id, new_temporary_password: str):
 
 @transaction.atomic
 def force_reset_password(*, request, user, new_password: str):
+    ensure_force_reset_not_rate_limited(request=request, user=user)
     locked_user = user.__class__.all_objects.select_for_update().get(pk=user.pk)
 
     if locked_user.deleted_at is not None or not locked_user.is_active:
@@ -247,15 +343,21 @@ def force_reset_password(*, request, user, new_password: str):
         return None
 
     if not locked_user.must_reset_password:
+        record_failed_force_reset_attempt(request=request, user=locked_user)
         raise PasswordResetNotRequiredError
 
-    validate_user_password(user=locked_user, password=new_password)
+    try:
+        validate_user_password(user=locked_user, password=new_password)
+    except PasswordValidationFailedError:
+        record_failed_force_reset_attempt(request=request, user=locked_user)
+        raise
 
     locked_user.set_password(new_password)
     locked_user.must_reset_password = False
     locked_user.save(update_fields=["password", "must_reset_password", "updated_at"])
     password_changed(new_password, locked_user)
     update_session_auth_hash(request, locked_user)
+    clear_force_reset_rate_limit(request=request, user=locked_user)
 
     return locked_user
 
@@ -264,6 +366,7 @@ def force_reset_password(*, request, user, new_password: str):
 def authenticate_user_session(*, request, email: str, password: str) -> AuthenticatedSession:
     user_model = get_user_model()
     normalized_email = user_model.objects.normalize_email(email).lower()
+    ensure_login_not_rate_limited(request=request, email=normalized_email)
     user = (
         user_model.all_objects.select_for_update()
         .filter(email__iexact=normalized_email)
@@ -271,14 +374,17 @@ def authenticate_user_session(*, request, email: str, password: str) -> Authenti
     )
 
     if user is None or user.deleted_at is not None or not user.is_active:
+        record_failed_login_attempt(request=request, email=normalized_email)
         raise InvalidCredentialsError
 
     if not user.check_password(password):
+        record_failed_login_attempt(request=request, email=normalized_email)
         raise InvalidCredentialsError
 
     user.last_login_at = timezone.now()
     user.save(update_fields=["last_login_at", "updated_at"])
     django_login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
+    clear_login_rate_limit(request=request, email=normalized_email)
 
     return AuthenticatedSession(
         user=user,
