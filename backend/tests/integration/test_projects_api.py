@@ -383,6 +383,7 @@ def test_active_project_member_can_view_project_details():
             "task_counter": 0,
             "start_date": None,
             "end_date": None,
+            "can_edit": False,
         }
     }
 
@@ -438,3 +439,177 @@ def test_removed_member_cannot_view_project_details():
             "details": {},
         }
     }
+
+
+def test_admin_can_edit_project_details():
+    admin_user = create_user(
+        email="project-edit-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project = create_project(owner=admin_user, code="EDT", name="Editable Project")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        {
+            "name": "Updated Project Name",
+            "description": "Updated project description",
+            "start_date": "2026-05-03",
+            "end_date": "2026-06-03",
+        },
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "project": {
+            "id": str(project.id),
+            "name": "Updated Project Name",
+            "code": "EDT",
+            "description": "Updated project description",
+            "owner_id": str(admin_user.id),
+            "task_counter": 0,
+            "start_date": "2026-05-03",
+            "end_date": "2026-06-03",
+            "can_edit": True,
+        }
+    }
+    assert project.name == "Updated Project Name"
+    assert project.description == "Updated project description"
+
+
+def test_project_manager_can_edit_project_details():
+    admin_user = create_user(
+        email="project-edit-seed-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project_manager = create_user(email="project-edit-manager@example.com")
+    project = create_project(owner=admin_user, code="PMG", name="Managed Project")
+    create_membership(
+        project=project,
+        user=project_manager,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(project_manager)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        {
+            "name": "Managed Project Updated",
+        },
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json()["project"]["name"] == "Managed Project Updated"
+    assert response.json()["project"]["can_edit"] is True
+    assert project.name == "Managed Project Updated"
+
+
+def test_team_member_cannot_edit_project_details():
+    admin_user = create_user(
+        email="project-edit-member-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    team_member = create_user(email="project-edit-member@example.com")
+    project = create_project(owner=admin_user, code="TMR", name="Team Member Readonly")
+    create_membership(
+        project=project,
+        user=team_member,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(team_member)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        {
+            "name": "Should Not Save",
+        },
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_PERMISSION_DENIED",
+            "message": "You do not have permission to edit this project.",
+            "details": {},
+        }
+    }
+    assert project.name == "Team Member Readonly"
+
+
+def test_project_update_rejects_invalid_date_range():
+    admin_user = create_user(
+        email="project-edit-dates-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project = create_project(owner=admin_user, code="DTR", name="Date Range Project")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        {
+            "start_date": "2026-06-03",
+            "end_date": "2026-05-03",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "end_date": ["End date cannot be earlier than start date."],
+            },
+        }
+    }
+
+
+def test_project_update_rejects_project_code_changes():
+    admin_user = create_user(
+        email="project-edit-code-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project = create_project(owner=admin_user, code="IMM", name="Immutable Code Project")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        {
+            "code": "NEW",
+        },
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_CODE_IMMUTABLE",
+            "message": "Project code cannot be changed.",
+            "details": {
+                "code": ["Project code cannot be changed."],
+            },
+        }
+    }
+    assert project.code == "IMM"

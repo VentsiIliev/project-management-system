@@ -1,5 +1,5 @@
 import { apiRequest } from "../../../api/client";
-import { type CreateProjectRequest, type Project } from "../types";
+import { type CreateProjectRequest, type Project, type ProjectDetail, type UpdateProjectRequest } from "../types";
 
 
 export async function createProject(payload: CreateProjectRequest): Promise<Project> {
@@ -16,7 +16,19 @@ export async function getProjects(): Promise<Project[]> {
   return response.projects;
 }
 
-export async function getProject(projectId: string): Promise<Project> {
-  const response = await apiRequest<{ project: Project }>(`/projects/${projectId}`);
+export async function getProject(projectId: string): Promise<ProjectDetail> {
+  const response = await apiRequest<{ project: ProjectDetail }>(`/projects/${projectId}`);
+  return response.project;
+}
+
+export async function updateProject(
+  projectId: string,
+  payload: UpdateProjectRequest,
+): Promise<ProjectDetail> {
+  const response = await apiRequest<{ project: ProjectDetail }>(`/projects/${projectId}`, {
+    body: JSON.stringify(payload),
+    method: "PATCH",
+  });
+
   return response.project;
 }

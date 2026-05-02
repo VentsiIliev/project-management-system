@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
@@ -13,10 +13,15 @@ import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
+import { useUpdateProjectMutation } from "../hooks/useUpdateProjectMutation";
 import {
   createProjectSchema,
   type CreateProjectFormValues,
 } from "../schemas/createProjectSchema";
+import {
+  updateProjectSchema,
+  type UpdateProjectFormValues,
+} from "../schemas/updateProjectSchema";
 
 type ProjectsHomePageProps = {
   projectId: string | null;
@@ -42,7 +47,9 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const createProjectMutation = useCreateProjectMutation();
   const projectsQuery = useProjectsQuery();
   const projectQuery = useProjectQuery(projectId);
+  const updateProjectMutation = useUpdateProjectMutation(projectId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
+  const [showEditSuccess, setShowEditSuccess] = useState(false);
   const {
     formState: { errors },
     handleSubmit,
@@ -57,12 +64,29 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     },
     resolver: zodResolver(createProjectSchema),
   });
+  const {
+    formState: { errors: editErrors },
+    handleSubmit: handleEditSubmit,
+    register: registerEdit,
+    reset: resetEditForm,
+  } = useForm<UpdateProjectFormValues>({
+    defaultValues: {
+      name: "",
+      description: "",
+      start_date: "",
+      end_date: "",
+    },
+    resolver: zodResolver(updateProjectSchema),
+  });
 
   const projectError = isApiError(createProjectMutation.error)
     ? createProjectMutation.error
     : null;
   const selectedProjectError = isApiError(projectQuery.error)
     ? projectQuery.error
+    : null;
+  const updateProjectError = isApiError(updateProjectMutation.error)
+    ? updateProjectMutation.error
     : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
@@ -86,6 +110,41 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
         !serverDescriptionError
           ? projectError.message
           : null);
+  const serverEditNameError = getDetailMessages(updateProjectError?.details.name)[0];
+  const serverEditDescriptionError = getDetailMessages(updateProjectError?.details.description)[0];
+  const serverEditStartDateError = getDetailMessages(updateProjectError?.details.start_date)[0];
+  const serverEditEndDateError = getDetailMessages(updateProjectError?.details.end_date)[0];
+  const serverEditCodeError = getDetailMessages(updateProjectError?.details.code)[0];
+  const serverEditFormError =
+    updateProjectError?.code === "PROJECT_PERMISSION_DENIED"
+      ? null
+      : updateProjectError &&
+        !serverEditNameError &&
+        !serverEditDescriptionError &&
+        !serverEditStartDateError &&
+        !serverEditEndDateError &&
+        !serverEditCodeError
+      ? updateProjectError.message
+      : null;
+
+  useEffect(() => {
+    if (!projectQuery.data) {
+      resetEditForm({
+        name: "",
+        description: "",
+        start_date: "",
+        end_date: "",
+      });
+      return;
+    }
+
+    resetEditForm({
+      name: projectQuery.data.name,
+      description: projectQuery.data.description ?? "",
+      start_date: projectQuery.data.start_date ?? "",
+      end_date: projectQuery.data.end_date ?? "",
+    });
+  }, [projectQuery.data, resetEditForm]);
 
   return (
     <AppShellPage user={user}>
@@ -193,7 +252,104 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   <dd>{projectQuery.data.end_date || "Not set"}</dd>
                 </div>
               </dl>
+              <div className="project-summary__rule">
+                Project code is locked after creation and cannot be edited.
+              </div>
             </div>
+          ) : null}
+        </Panel>
+
+        <Panel className="project-edit-panel">
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Edit project</h2>
+            <p className="panel-heading__body">
+              Update the current project details without changing the stable project code used for future task keys.
+            </p>
+          </div>
+          {!projectQuery.data ? (
+            <StatusMessage title="Project edit is unavailable">
+              Select a project detail route before editing.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data && !projectQuery.data.can_edit ? (
+            <StatusMessage tone="warning" title="Read-only access">
+              Only Admins and active Project Managers can edit this project. The current account can view details but
+              cannot change them.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data?.can_edit ? (
+            <form
+              className="form-stack"
+              onSubmit={handleEditSubmit((values) => {
+                setShowEditSuccess(false);
+                updateProjectMutation.reset();
+                updateProjectMutation.mutate(values, {
+                  onSuccess: () => {
+                    setShowEditSuccess(true);
+                  },
+                });
+              })}
+            >
+              <Field
+                error={editErrors.name?.message ?? serverEditNameError}
+                label="Project name"
+                type="text"
+                {...registerEdit("name")}
+              />
+              <Field
+                error={serverEditCodeError}
+                label="Project code"
+                readOnly
+                type="text"
+                value={projectQuery.data.code}
+              />
+              <label className="field" htmlFor="edit-description">
+                <span className="field__label">Description</span>
+                <textarea
+                  className="field__input field__input--textarea"
+                  id="edit-description"
+                  rows={4}
+                  {...registerEdit("description")}
+                />
+                {editErrors.description?.message ?? serverEditDescriptionError ? (
+                  <span className="field__error" role="alert">
+                    {editErrors.description?.message ?? serverEditDescriptionError}
+                  </span>
+                ) : null}
+              </label>
+              <div className="split-fields">
+                <Field
+                  error={editErrors.start_date?.message ?? serverEditStartDateError}
+                  label="Start date"
+                  type="date"
+                  {...registerEdit("start_date")}
+                />
+                <Field
+                  error={editErrors.end_date?.message ?? serverEditEndDateError}
+                  label="End date"
+                  type="date"
+                  {...registerEdit("end_date")}
+                />
+              </div>
+              {updateProjectError?.code === "PROJECT_PERMISSION_DENIED" ? (
+                <StatusMessage tone="error" title="Permission denied">
+                  {updateProjectError.message}
+                </StatusMessage>
+              ) : null}
+              {serverEditFormError ? (
+                <StatusMessage tone="error" title="Project update failed">
+                  {serverEditFormError}
+                </StatusMessage>
+              ) : null}
+              {showEditSuccess ? (
+                <StatusMessage title="Project updated">
+                  The current project details were saved successfully.
+                </StatusMessage>
+              ) : null}
+              <Button disabled={updateProjectMutation.isPending} type="submit">
+                {updateProjectMutation.isPending ? "Saving changes..." : "Save changes"}
+              </Button>
+            </form>
           ) : null}
         </Panel>
 

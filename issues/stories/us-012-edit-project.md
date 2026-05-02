@@ -1,8 +1,21 @@
-﻿# US-012 - Edit Project  ## Metadata - Area: 3. Projects - GitHub labels: `user-story`, `mvp`, `area:projects` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-009, US-011 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-012 - Edit Project
+
+## Metadata
+
+- Area: 3. Projects
+- GitHub labels: `user-story`, `mvp`, `area:projects`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 2`
+- Depends on: `US-009`, `US-011`
+- Parallelization note: This slice should follow `US-011` because it builds directly on the new project detail route and read contract.
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to edit project details  
 **So that** project information stays current.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin or Project Manager  
 **When** I update editable project fields  
@@ -10,44 +23,56 @@
 
 **Given** I am a Team Member  
 **When** I attempt to edit project details  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/maintain project schema with UUID, owner, immutable code, task counter, dates, and soft delete.
-- [ ] Add unique/index constraints for project code and owner lookups.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement project endpoints with pagination and permission checks.
-- [ ] Enforce immutable project code on PATCH.
-- [ ] Validate project date ranges.
-- [ ] Soft-delete project, tasks, subtasks, memberships, dependencies visibility with confirmation flag.
-- [ ] Write project activity logs.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build project create/edit/detail/list UI.
-- [ ] Prevent code editing after creation in the UI.
-- [ ] Show destructive delete confirmation text exactly as specified.
+- [x] Implement `PATCH /api/projects/{project_id}` in the owning `projects` module.
+- [x] Allow updates only to:
+  - `name`
+  - `description`
+  - `start_date`
+  - `end_date`
+- [x] Reuse active-project visibility for target lookup.
+- [x] Allow edit permission only to:
+  - Admin
+  - active `PROJECT_MANAGER` members on that project
+- [x] Deny Team Members with a structured permission error.
+- [x] Reuse project date-range validation on update.
+- [x] Return the updated canonical project payload on success.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test immutable code, date validation, and soft-delete behavior.
-- [ ] Integration test project CRUD and deleted-project exclusion from normal views.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Add an edit form inside the project detail workspace.
+- [x] Prefill the form from the selected project detail query.
+- [x] Submit updates through the shared API client and refresh the detail/list state.
+- [x] Surface visible success, validation, and permission-denied states.
+- [x] Keep the create flow intact and do not replace the project access workspace.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add backend integration coverage for successful edit by Admin.
+- [x] Add backend integration coverage for successful edit by project `PROJECT_MANAGER`.
+- [x] Add backend integration coverage showing Team Members receive a permission error.
+- [x] Add backend integration coverage for invalid date-range updates.
+- [x] Add frontend integration coverage for editing a project from the detail route.
+- [x] Add frontend integration coverage for permission-denied edit attempts.
+
+## Dependencies And Notes
+
+- This slice intentionally stops at project update only. It does not implement:
+  - project deletion
+  - member management changes
+  - task flows
+  - activity-log display
+- The immutable-code invariant from `US-010` should be delivered on the same PATCH route rather than as a separate standalone branch.
+
+## Definition Of Done
+
+- `PATCH /api/projects/{project_id}` exists and updates editable project fields.
+- Admins and active project managers can edit projects.
+- Team Members cannot edit project details.
+- Invalid date ranges return a structured validation error.
+- The project detail workspace includes a working edit form with visible success and failure states.
