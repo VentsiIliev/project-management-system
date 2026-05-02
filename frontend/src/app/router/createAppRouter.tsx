@@ -65,6 +65,21 @@ function ResetRequiredRoute() {
   return <ResetRequiredPage user={session} />;
 }
 
+function FallbackRoute() {
+  const { session } = useSessionContext();
+
+  if (!session) {
+    return <Navigate replace to="/login" />;
+  }
+
+  return (
+    <Navigate
+      replace
+      to={session.must_reset_password ? "/reset-password" : "/"}
+    />
+  );
+}
+
 function SessionLayout() {
   return (
     <SessionGate>
@@ -80,6 +95,7 @@ function AppRoutes() {
         <Route element={<ProtectedShellRoute />} index />
         <Route element={<LoginRoute />} path="login" />
         <Route element={<ResetRequiredRoute />} path="reset-password" />
+        <Route element={<FallbackRoute />} path="*" />
       </Route>
     </Routes>
   );
