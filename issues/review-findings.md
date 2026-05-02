@@ -38,6 +38,8 @@
 
 3. `US-014 Add Project Member` uses `user_id` in the spec request shape, but the current frontend stack has no user-search or user-list surface yet. The working slice keeps the spec contract and exposes a visible members panel with a direct `user_id` entry field instead of inventing a broader user directory story.
 
+4. `US-016 Remove Project Member` includes removed-member task-label behavior in the acceptance criteria, but task read models are not implemented in the current branch stack yet. The grouped `US-015` and `US-016` slice owns membership role updates, membership soft-delete, and immediate project-access loss, while deferring task-label rendering to the future task-view slices.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

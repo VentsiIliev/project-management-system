@@ -1,56 +1,73 @@
-﻿# US-016 - Remove Project Member  ## Metadata - Area: 4. Project Memberships and Roles - GitHub labels: `user-story`, `mvp`, `area:memberships` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-014 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-016 - Remove Project Member
+
+## Metadata
+
+- Area: 4. Project Memberships and Roles
+- GitHub labels: `user-story`, `mvp`, `area:memberships`
+- Suggested status: `Owner Review`
+- Suggested wave: `Wave 2`
+- Depends on: `US-014`
+- Reviewable slice: grouped with `US-015` because both extend the same membership contract and members panel
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to remove members from projects  
 **So that** access can be revoked.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I remove a project member  
 **When** the removal succeeds  
 **Then** the membership is soft-deleted.
 
-**Given** the removed user was assigned to tasks  
-**When** those tasks are viewed  
-**Then** the assignment remains visible and is labeled as removed from project.
-
 **Given** a removed member attempts to access the project  
 **When** they open project pages or APIs  
-**Then** the system denies access.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies access.
 
-### Database
-- [ ] Create/maintain `project_memberships` table with role enum, unique project-user pair, timestamps, and soft delete.
-- [ ] Add indexes for permission lookup by project and user.
+**Given** the removed user was assigned to tasks  
+**When** those tasks are viewed in a future task slice  
+**Then** the assignment must remain visible and be labeled as removed from project.
 
-### Backend/API
-- [ ] Implement membership CRUD endpoints with Project Manager/Admin permissions.
-- [ ] Ignore soft-deleted memberships in all authorization checks.
-- [ ] Preserve task assignments when a member is removed and label removed users in read models.
-- [ ] Emit member activity logs.
+## Delivery Notes
 
-### Frontend/UI
-- [ ] Build member management UI with role selector and remove confirmation.
-- [ ] Hide member actions for users without permission.
-- [ ] Display removed/inactive assignment labels where relevant.
+- Use the spec contract:
+  - `DELETE /api/projects/{project_id}/members/{user_id}`
+- The current grouped slice owns:
+  - membership soft-delete
+  - immediate project access loss
+  - frontend removal action in the members panel
+- Task-assignment labeling remains deferred because task reads are not implemented in the current branch stack.
+- If the currently signed-in user removes their own membership, the workspace should navigate away from the project route after success because the project is no longer visible.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test membership role constraints and soft-deleted membership access loss.
-- [ ] Integration test add, role change, removal, and access revocation.
+## Tasks
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+### Backend
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+- [x] Add the membership remove endpoint.
+- [x] Allow only Admins and active `PROJECT_MANAGER` memberships to remove members.
+- [x] Soft-delete the target active membership.
+- [x] Return not found when the target active membership does not exist.
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+### Frontend
+
+- [x] Extend the members panel with a remove-member action.
+- [x] Remove the deleted member from cached member state.
+- [x] Navigate away when the current user removes their own membership.
+- [x] Show structured permission and missing-member errors.
+
+### Tests
+
+- [x] Backend integration coverage for admin removal, project-manager removal, team-member denial, missing-membership handling, and removed-member access loss.
+- [x] Frontend flow coverage for successful removal and self-removal redirect.
+
+## Definition Of Done
+
+- Active memberships can be soft-deleted through the spec endpoint.
+- Removed members lose project access immediately.
+- The members panel exposes a visible remove action for authorized users.
+
+## Out Of Scope
+
+- Task assignment labels for removed members
+- Activity-log emission for membership changes

@@ -432,6 +432,166 @@ describe("projects flow", () => {
     );
   });
 
+  it("removes member-management controls after the current user downgrades their own role", async () => {
+    let currentRole = "PROJECT_MANAGER";
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({
+          body: sessionResponse({ is_admin: false }),
+        });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({
+          body: {
+            project: projectDetailResponse({
+              can_edit: currentRole === "PROJECT_MANAGER",
+              can_delete: currentRole === "PROJECT_MANAGER",
+              can_manage_members: currentRole === "PROJECT_MANAGER",
+            }),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({
+          body: {
+            members: memberListResponse([
+              {
+                user_id: "user-1",
+                email: "jane@example.com",
+                name: "Jane Doe",
+                is_active: true,
+                role: currentRole,
+              },
+              {
+                user_id: "user-2",
+                email: "member@example.com",
+                name: "Member Two",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ]),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members/user-1" && init?.method === "PATCH") {
+        currentRole = "TEAM_MEMBER";
+        return jsonResponse({
+          body: {
+            member: {
+              user_id: "user-1",
+              email: "jane@example.com",
+              name: "Jane Doe",
+              is_active: true,
+              role: "TEAM_MEMBER",
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.selectOptions(await screen.findByDisplayValue("PROJECT_MANAGER"), "TEAM_MEMBER");
+    await user.click(screen.getAllByRole("button", { name: /save role/i })[0]!);
+
+    expect(await screen.findByText(/member changes are restricted/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add member/i })).not.toBeInTheDocument();
+    const patchCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1/members/user-1" &&
+        requestInit?.method === "PATCH",
+    );
+    expect(patchCall?.[1]?.body).toBe(JSON.stringify({ role: "TEAM_MEMBER" }));
+  });
+
+  it("redirects to the workspace root when the current user removes their own membership", async () => {
+    let removed = false;
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({
+          body: sessionResponse({ is_admin: false }),
+        });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({
+          body: {
+            projects: removed ? [] : projectListResponse(),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({
+          status: removed ? 404 : 200,
+          body: removed
+            ? {
+                error: {
+                  code: "PROJECT_NOT_FOUND",
+                  message: "Project not found.",
+                  details: {},
+                },
+              }
+            : {
+                project: projectDetailResponse({
+                  can_edit: true,
+                  can_delete: true,
+                  can_manage_members: true,
+                }),
+              },
+        });
+      }
+      if (url === "/api/projects/project-1/members" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({
+          body: {
+            members: memberListResponse([
+              {
+                user_id: "user-1",
+                email: "jane@example.com",
+                name: "Jane Doe",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+              {
+                user_id: "user-2",
+                email: "member@example.com",
+                name: "Member Two",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ]),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members/user-1" && init?.method === "DELETE") {
+        removed = true;
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click((await screen.findAllByRole("button", { name: /remove member/i }))[0]!);
+
+    await waitFor(() =>
+      expect(screen.getByText(/no accessible projects yet/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("button", { name: /engineering platform/i })).not.toBeInTheDocument();
+    const deleteCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1/members/user-1" &&
+        requestInit?.method === "DELETE",
+    );
+    expect(deleteCall).toBeTruthy();
+  });
+
   it("requires explicit confirmation before deleting a project", async () => {
     stubFetch((url) => {
       if (url === "/api/auth/me") {

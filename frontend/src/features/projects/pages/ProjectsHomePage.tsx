@@ -16,6 +16,8 @@ import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectMembersQuery } from "../hooks/useProjectMembersQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
+import { useRemoveProjectMemberMutation } from "../hooks/useRemoveProjectMemberMutation";
+import { useUpdateProjectMemberMutation } from "../hooks/useUpdateProjectMemberMutation";
 import { useUpdateProjectMutation } from "../hooks/useUpdateProjectMutation";
 import {
   addProjectMemberSchema,
@@ -29,6 +31,7 @@ import {
   updateProjectSchema,
   type UpdateProjectFormValues,
 } from "../schemas/updateProjectSchema";
+import { type ProjectMemberRole } from "../types";
 
 type ProjectsHomePageProps = {
   projectId: string | null;
@@ -57,10 +60,16 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const projectMembersQuery = useProjectMembersQuery(projectQuery.data ? projectId : null);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
   const addProjectMemberMutation = useAddProjectMemberMutation(projectId);
+  const updateProjectMemberMutation = useUpdateProjectMemberMutation(projectId);
+  const removeProjectMemberMutation = useRemoveProjectMemberMutation(projectId);
   const deleteProjectMutation = useDeleteProjectMutation(projectId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
   const [showAddMemberSuccess, setShowAddMemberSuccess] = useState(false);
+  const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, ProjectMemberRole>>({});
+  const [memberActionSuccess, setMemberActionSuccess] = useState<string | null>(null);
+  const [activeRoleUpdateUserId, setActiveRoleUpdateUserId] = useState<string | null>(null);
+  const [activeRemoveUserId, setActiveRemoveUserId] = useState<string | null>(null);
   const [deleteConfirmationChecked, setDeleteConfirmationChecked] = useState(false);
   const [deleteConfirmationError, setDeleteConfirmationError] = useState<string | null>(null);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
@@ -120,6 +129,12 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const addProjectMemberError = isApiError(addProjectMemberMutation.error)
     ? addProjectMemberMutation.error
     : null;
+  const updateProjectMemberError = isApiError(updateProjectMemberMutation.error)
+    ? updateProjectMemberMutation.error
+    : null;
+  const removeProjectMemberError = isApiError(removeProjectMemberMutation.error)
+    ? removeProjectMemberMutation.error
+    : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
   const serverStartDateError = getDetailMessages(projectError?.details.start_date)[0];
@@ -176,6 +191,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     addProjectMemberError.code !== "PROJECT_PERMISSION_DENIED"
       ? addProjectMemberError.message
       : null;
+  const memberActionError = updateProjectMemberError ?? removeProjectMemberError;
 
   useEffect(() => {
     if (!projectQuery.data) {
@@ -205,12 +221,33 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
 
   useEffect(() => {
     setShowAddMemberSuccess(false);
+    setMemberActionSuccess(null);
     addProjectMemberMutation.reset();
+    updateProjectMemberMutation.reset();
+    removeProjectMemberMutation.reset();
+    setMemberRoleDrafts({});
+    setActiveRoleUpdateUserId(null);
+    setActiveRemoveUserId(null);
     resetMemberForm({
       user_id: "",
       role: "TEAM_MEMBER",
     });
   }, [projectId, resetMemberForm]);
+
+  useEffect(() => {
+    if (!projectMembersQuery.data) {
+      setMemberRoleDrafts({});
+      return;
+    }
+
+    setMemberRoleDrafts((currentDrafts) => {
+      const nextDrafts: Record<string, ProjectMemberRole> = {};
+      for (const member of projectMembersQuery.data) {
+        nextDrafts[member.user_id] = currentDrafts[member.user_id] ?? member.role;
+      }
+      return nextDrafts;
+    });
+  }, [projectMembersQuery.data]);
 
   return (
     <AppShellPage user={user}>
@@ -364,8 +401,100 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     <span>{member.email}</span>
                   </div>
                   <div className="member-list__meta">
-                    <span className="member-role-pill">{member.role.replace("_", " ")}</span>
+                    {projectQuery.data?.can_manage_members ? (
+                      <label className="member-role-editor" htmlFor={`member-role-${member.user_id}`}>
+                        <span className="member-role-editor__label">Role</span>
+                        <select
+                          className="field__input member-role-editor__select"
+                          id={`member-role-${member.user_id}`}
+                          onChange={(event) => {
+                            setMemberRoleDrafts((currentDrafts) => ({
+                              ...currentDrafts,
+                              [member.user_id]: event.target.value as ProjectMemberRole,
+                            }));
+                            setMemberActionSuccess(null);
+                          }}
+                          value={memberRoleDrafts[member.user_id] ?? member.role}
+                        >
+                          <option value="TEAM_MEMBER">TEAM_MEMBER</option>
+                          <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <span className="member-role-pill">{member.role.replace("_", " ")}</span>
+                    )}
                     {!member.is_active ? <span className="member-status-pill">Inactive user</span> : null}
+                    {projectQuery.data?.can_manage_members ? (
+                      <div className="member-actions">
+                        <Button
+                          className="member-actions__button"
+                          disabled={
+                            updateProjectMemberMutation.isPending &&
+                            activeRoleUpdateUserId === member.user_id
+                          }
+                          onClick={() => {
+                            setShowAddMemberSuccess(false);
+                            setMemberActionSuccess(null);
+                            updateProjectMemberMutation.reset();
+                            removeProjectMemberMutation.reset();
+                            setActiveRoleUpdateUserId(member.user_id);
+                            setActiveRemoveUserId(null);
+                            updateProjectMemberMutation.mutate(
+                              {
+                                userId: member.user_id,
+                                role: memberRoleDrafts[member.user_id] ?? member.role,
+                              },
+                              {
+                                onSuccess: (updatedMember) => {
+                                  setMemberActionSuccess(`Updated ${updatedMember.name}.`);
+                                },
+                              },
+                            );
+                          }}
+                          type="button"
+                          variant="secondary"
+                        >
+                          {updateProjectMemberMutation.isPending &&
+                          activeRoleUpdateUserId === member.user_id
+                            ? "Saving role..."
+                            : "Save role"}
+                        </Button>
+                        <Button
+                          className="button button--danger member-actions__button"
+                          disabled={
+                            removeProjectMemberMutation.isPending &&
+                            activeRemoveUserId === member.user_id
+                          }
+                          onClick={() => {
+                            setShowAddMemberSuccess(false);
+                            setMemberActionSuccess(null);
+                            updateProjectMemberMutation.reset();
+                            removeProjectMemberMutation.reset();
+                            setActiveRoleUpdateUserId(null);
+                            setActiveRemoveUserId(member.user_id);
+                            removeProjectMemberMutation.mutate(
+                              { userId: member.user_id },
+                              {
+                                onSuccess: () => {
+                                  if (!user.is_admin && member.user_id === user.id) {
+                                    navigate("/");
+                                    return;
+                                  }
+
+                                  setMemberActionSuccess(`Removed ${member.name}.`);
+                                },
+                              },
+                            );
+                          }}
+                          type="button"
+                        >
+                          {removeProjectMemberMutation.isPending &&
+                          activeRemoveUserId === member.user_id
+                            ? "Removing..."
+                            : "Remove member"}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -428,6 +557,16 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
               {showAddMemberSuccess ? (
                 <StatusMessage title="Member added">
                   The member list was updated for the current project.
+                </StatusMessage>
+              ) : null}
+              {memberActionError ? (
+                <StatusMessage tone="error" title="Member action failed">
+                  {memberActionError.message}
+                </StatusMessage>
+              ) : null}
+              {memberActionSuccess ? (
+                <StatusMessage title="Member updated">
+                  {memberActionSuccess}
                 </StatusMessage>
               ) : null}
               <Button disabled={addProjectMemberMutation.isPending} type="submit">

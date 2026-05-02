@@ -6,6 +6,7 @@ import {
   type ProjectMember,
   type Project,
   type ProjectDetail,
+  type UpdateProjectMemberRequest,
   type UpdateProjectRequest,
 } from "../types";
 
@@ -62,4 +63,25 @@ export async function addProjectMember(
     method: "POST",
   });
   return response.member;
+}
+
+export async function updateProjectMember(
+  projectId: string,
+  userId: string,
+  payload: UpdateProjectMemberRequest,
+): Promise<ProjectMember> {
+  const response = await apiRequest<{ member: ProjectMember }>(
+    `/projects/${projectId}/members/${userId}`,
+    {
+      body: JSON.stringify(payload),
+      method: "PATCH",
+    },
+  );
+  return response.member;
+}
+
+export async function removeProjectMember(projectId: string, userId: string): Promise<void> {
+  await apiRequest(`/projects/${projectId}/members/${userId}`, {
+    method: "DELETE",
+  });
 }
