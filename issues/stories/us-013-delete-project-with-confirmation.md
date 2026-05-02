@@ -1,61 +1,82 @@
-﻿# US-013 - Delete Project With Confirmation  ## Metadata - Area: 3. Projects - GitHub labels: `user-story`, `mvp`, `area:projects` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-009, US-011 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-013 - Delete Project With Confirmation
+
+## Metadata
+
+- Area: 3. Projects
+- GitHub labels: `user-story`, `mvp`, `area:projects`
+- Suggested status: `Owner Review`
+- Suggested wave: `Wave 2`
+- Depends on: `US-009`, `US-011`
+- Reviewable slice: backend project delete contract, frontend confirmation flow, and project visibility regression coverage
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to delete a project only after confirmation  
 **So that** accidental project deletion is prevented.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to delete a project  
-**When** I submit a delete request without confirmation  
-**Then** the system rejects the request.
+**When** I submit `DELETE /api/projects/{project_id}` without `confirm_project_delete = true`  
+**Then** the system rejects the request with a structured validation error.
 
 **Given** I confirm project deletion  
-**When** I delete the project  
-**Then** the system soft-deletes the project, tasks, subtasks, and memberships.
+**When** I delete a project  
+**Then** the system soft-deletes the project and its project memberships.
 
 **Given** a project is soft-deleted  
-**When** normal users search or browse projects and tasks  
-**Then** the deleted project and related work are hidden.
+**When** normal users browse project lists or project detail routes  
+**Then** the deleted project is hidden from normal project APIs and the frontend workspace.
 
 **Given** a project is deleted  
-**When** activity logs are viewed through admin/debug tooling  
-**Then** historical activity remains preserved.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**When** later task, subtask, and activity-log modules are implemented  
+**Then** they must follow the global project-deletion rule from the spec and preserve historical activity instead of hard deleting it.
 
-### Database
-- [ ] Create/maintain project schema with UUID, owner, immutable code, task counter, dates, and soft delete.
-- [ ] Add unique/index constraints for project code and owner lookups.
+## Delivery Notes
 
-### Backend/API
-- [ ] Implement project endpoints with pagination and permission checks.
-- [ ] Enforce immutable project code on PATCH.
-- [ ] Validate project date ranges.
-- [ ] Soft-delete project, tasks, subtasks, memberships, dependencies visibility with confirmation flag.
-- [ ] Write project activity logs.
+- Use the API confirmation flag already defined in `docs/planning/project_spec_v4-1.md`:
+  - `confirm_project_delete: true`
+- Frontend confirmation for this slice is a required checkbox with the exact label:
+  - `I understand this will soft-delete this project and its memberships.`
+- Permission for delete matches the current edit permission boundary:
+  - Admins
+  - active `PROJECT_MANAGER` memberships on the target project
+- This slice does not invent task, subtask, or activity-log deletion code because those modules are not implemented yet in the current branch stack.
 
-### Frontend/UI
-- [ ] Build project create/edit/detail/list UI.
-- [ ] Prevent code editing after creation in the UI.
-- [ ] Show destructive delete confirmation text exactly as specified.
+## Tasks
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test immutable code, date validation, and soft-delete behavior.
-- [ ] Integration test project CRUD and deleted-project exclusion from normal views.
+### Backend
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Add `DELETE /api/projects/{project_id}`.
+- [x] Require `confirm_project_delete = true`.
+- [x] Soft-delete the project and all active memberships in one transaction.
+- [x] Return not found for already deleted or inaccessible projects.
+- [x] Return permission denied for visible but non-deletable members.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add a destructive delete panel on project detail routes.
+- [x] Require the confirmation checkbox before submit.
+- [x] Submit the delete request and navigate back to the project workspace root on success.
+- [x] Remove the deleted project from cached list/detail state.
+- [x] Show structured backend validation or permission errors.
+
+### Tests
+
+- [x] Backend integration coverage for confirmation required, admin delete, project-manager delete, member denial, and hidden deleted projects.
+- [x] Frontend flow coverage for checkbox-required submit, successful delete navigation, and deleted project disappearance from the workspace.
+
+## Definition Of Done
+
+- `DELETE /api/projects/{project_id}` exists and follows the confirmation contract.
+- Deleted projects no longer appear in normal list/detail reads.
+- Deleted project memberships are soft-deleted with the project.
+- The frontend exposes a visible delete flow from the project workspace.
+- Backend and frontend tests cover the acceptance criteria for this slice.
+
+## Out Of Scope
+
+- Cascading task or subtask deletion behavior
+- Activity-log write or admin/debug activity-log views
+- Membership management CRUD beyond project-delete cascade

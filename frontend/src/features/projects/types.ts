@@ -11,6 +11,7 @@ export type Project = {
 
 export type ProjectDetail = Project & {
   can_edit: boolean;
+  can_delete: boolean;
 };
 
 export type CreateProjectRequest = {
@@ -27,4 +28,8 @@ export type UpdateProjectRequest = {
   description?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+};
+
+export type DeleteProjectRequest = {
+  confirm_project_delete: boolean;
 };

@@ -20,3 +20,7 @@ def can_edit_project(*, user, project) -> bool:
         user=user,
         role=ProjectMembershipRole.PROJECT_MANAGER,
     ).exists()
+
+
+def can_delete_project(*, user, project) -> bool:
+    return can_edit_project(user=user, project=project)

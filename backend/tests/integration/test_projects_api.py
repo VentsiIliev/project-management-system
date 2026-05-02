@@ -384,6 +384,7 @@ def test_active_project_member_can_view_project_details():
             "start_date": None,
             "end_date": None,
             "can_edit": False,
+            "can_delete": False,
         }
     }
 
@@ -476,6 +477,7 @@ def test_admin_can_edit_project_details():
             "start_date": "2026-05-03",
             "end_date": "2026-06-03",
             "can_edit": True,
+            "can_delete": True,
         }
     }
     assert project.name == "Updated Project Name"
@@ -511,6 +513,7 @@ def test_project_manager_can_edit_project_details():
     assert response.status_code == 200
     assert response.json()["project"]["name"] == "Managed Project Updated"
     assert response.json()["project"]["can_edit"] is True
+    assert response.json()["project"]["can_delete"] is True
     assert project.name == "Managed Project Updated"
 
 
@@ -613,3 +616,169 @@ def test_project_update_rejects_project_code_changes():
         }
     }
     assert project.code == "IMM"
+
+
+def test_project_delete_requires_confirmation():
+    admin_user = create_user(
+        email="project-delete-confirm-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project = create_project(owner=admin_user, code="DEL", name="Delete Me")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.delete(
+        f"/api/projects/{project.id}",
+        {},
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "confirm_project_delete": ["This field is required."],
+            },
+        }
+    }
+    assert project.deleted_at is None
+
+
+def test_admin_can_soft_delete_a_project_and_its_memberships():
+    admin_user = create_user(
+        email="project-delete-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="project-delete-member@example.com")
+    project = create_project(owner=admin_user, code="DELADM", name="Delete Admin Project")
+    membership = create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    owner_membership = create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.delete(
+        f"/api/projects/{project.id}",
+        {"confirm_project_delete": True},
+        format="json",
+    )
+
+    project.refresh_from_db()
+    membership.refresh_from_db()
+    owner_membership.refresh_from_db()
+
+    assert response.status_code == 204
+    assert project.deleted_at is not None
+    assert membership.deleted_at is not None
+    assert owner_membership.deleted_at is not None
+    assert client.get("/api/projects").json() == {"projects": []}
+    detail_response = client.get(f"/api/projects/{project.id}")
+    assert detail_response.status_code == 404
+
+
+def test_project_manager_can_delete_their_project():
+    admin_user = create_user(
+        email="project-delete-seed-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project_manager = create_user(email="project-delete-manager@example.com")
+    project = create_project(owner=admin_user, code="PMD", name="Managed Delete")
+    create_membership(
+        project=project,
+        user=project_manager,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(project_manager)
+
+    response = client.delete(
+        f"/api/projects/{project.id}",
+        {"confirm_project_delete": True},
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 204
+    assert project.deleted_at is not None
+
+
+def test_team_member_cannot_delete_a_project():
+    admin_user = create_user(
+        email="project-delete-member-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    team_member = create_user(email="project-delete-team-member@example.com")
+    project = create_project(owner=admin_user, code="TMD", name="Member Delete Denied")
+    create_membership(
+        project=project,
+        user=team_member,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(team_member)
+
+    response = client.delete(
+        f"/api/projects/{project.id}",
+        {"confirm_project_delete": True},
+        format="json",
+    )
+
+    project.refresh_from_db()
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_PERMISSION_DENIED",
+            "message": "You do not have permission to delete this project.",
+            "details": {},
+        }
+    }
+    assert project.deleted_at is None
+
+
+def test_deleted_projects_are_hidden_from_members_after_delete():
+    admin_user = create_user(
+        email="project-delete-hidden-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="project-delete-hidden-member@example.com")
+    project = create_project(owner=admin_user, code="HDP", name="Hide Deleted Project")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+    client.delete(
+        f"/api/projects/{project.id}",
+        {"confirm_project_delete": True},
+        format="json",
+    )
+
+    member_client = APIClient()
+    member_client.force_login(member_user)
+
+    list_response = member_client.get("/api/projects")
+    detail_response = member_client.get(f"/api/projects/{project.id}")
+
+    assert list_response.status_code == 200
+    assert list_response.json() == {"projects": []}
+    assert detail_response.status_code == 404

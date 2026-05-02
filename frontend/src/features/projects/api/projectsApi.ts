@@ -1,5 +1,11 @@
 import { apiRequest } from "../../../api/client";
-import { type CreateProjectRequest, type Project, type ProjectDetail, type UpdateProjectRequest } from "../types";
+import {
+  type CreateProjectRequest,
+  type DeleteProjectRequest,
+  type Project,
+  type ProjectDetail,
+  type UpdateProjectRequest,
+} from "../types";
 
 
 export async function createProject(payload: CreateProjectRequest): Promise<Project> {
@@ -31,4 +37,11 @@ export async function updateProject(
   });
 
   return response.project;
+}
+
+export async function deleteProject(projectId: string, payload: DeleteProjectRequest): Promise<void> {
+  await apiRequest(`/projects/${projectId}`, {
+    body: JSON.stringify(payload),
+    method: "DELETE",
+  });
 }

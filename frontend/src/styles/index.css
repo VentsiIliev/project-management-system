@@ -217,6 +217,23 @@ textarea {
   font-size: 0.9rem;
 }
 
+.checkbox-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.checkbox-field__input {
+  margin-top: 0.2rem;
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+}
+
+.checkbox-field__label {
+  line-height: 1.5;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -248,6 +265,11 @@ textarea {
 
 .button--secondary {
   background: var(--color-bg-ink);
+}
+
+.button--danger {
+  background: #b33a2f;
+  box-shadow: 0 12px 30px rgba(179, 58, 47, 0.24);
 }
 
 .button--full {
@@ -463,6 +485,10 @@ textarea {
   min-width: 0;
 }
 
+.project-delete-panel {
+  min-width: 0;
+}
+
 @media (min-width: 860px) {
   .screen__content {
     grid-template-columns: minmax(0, 1.3fr) minmax(22rem, 0.9fr);
@@ -489,6 +515,10 @@ textarea {
   }
 
   .project-edit-panel {
+    grid-column: 1 / -1;
+  }
+
+  .project-delete-panel {
     grid-column: 1 / -1;
   }
 

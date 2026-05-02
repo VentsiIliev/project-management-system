@@ -67,6 +67,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: false,
+            can_delete: false,
           },
         },
       }),
@@ -148,6 +149,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: true,
+            can_delete: true,
           },
         },
       }),
@@ -163,6 +165,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: true,
+            can_delete: true,
           },
         },
       }),
@@ -194,6 +197,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: true,
+            can_delete: true,
           },
         },
       }),
@@ -322,6 +326,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: true,
+            can_delete: true,
           },
         },
       }),
@@ -337,6 +342,7 @@ describe("projects flow", () => {
             start_date: "2026-05-04",
             end_date: "2026-06-10",
             can_edit: true,
+            can_delete: true,
           },
         },
       }),
@@ -398,6 +404,7 @@ describe("projects flow", () => {
             start_date: "2026-05-01",
             end_date: "2026-06-01",
             can_edit: false,
+            can_delete: false,
           },
         },
       }),
@@ -407,5 +414,125 @@ describe("projects flow", () => {
 
     expect(await screen.findByText(/read-only access/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
+  });
+
+  it("requires explicit confirmation before deleting a project", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: true,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "user-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+            can_edit: true,
+            can_delete: true,
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByRole("button", { name: /delete project/i }));
+
+    expect(
+      await screen.findByText(/project deletion confirmation is required before continuing/i),
+    ).toBeInTheDocument();
+  });
+
+  it("deletes a project after confirmation and returns to the workspace list", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: true,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "user-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+            can_edit: true,
+            can_delete: true,
+          },
+        },
+      }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(
+      await screen.findByLabelText(
+        /i understand this will soft-delete this project and its memberships/i,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: /delete project/i }));
+
+    expect(await screen.findByText(/no accessible projects yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /engineering platform/i })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/projects/project-1");
+    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("DELETE");
+    expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(
+      JSON.stringify({ confirm_project_delete: true }),
+    );
   });
 });
