@@ -11,10 +11,12 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { AppShellPage } from "../../auth/pages/AppShellPage";
 import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
+import { useCreateProjectTaskMutation } from "../hooks/useCreateProjectTaskMutation";
 import { useAddProjectMemberMutation } from "../hooks/useAddProjectMemberMutation";
 import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectMembersQuery } from "../hooks/useProjectMembersQuery";
+import { useProjectTasksQuery } from "../hooks/useProjectTasksQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import { useRemoveProjectMemberMutation } from "../hooks/useRemoveProjectMemberMutation";
 import { useUpdateProjectMemberMutation } from "../hooks/useUpdateProjectMemberMutation";
@@ -27,6 +29,10 @@ import {
   createProjectSchema,
   type CreateProjectFormValues,
 } from "../schemas/createProjectSchema";
+import {
+  createProjectTaskSchema,
+  type CreateProjectTaskFormValues,
+} from "../schemas/createProjectTaskSchema";
 import {
   updateProjectSchema,
   type UpdateProjectFormValues,
@@ -58,14 +64,17 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const projectsQuery = useProjectsQuery();
   const projectQuery = useProjectQuery(projectId);
   const projectMembersQuery = useProjectMembersQuery(projectQuery.data ? projectId : null);
+  const projectTasksQuery = useProjectTasksQuery(projectQuery.data ? projectId : null);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
   const addProjectMemberMutation = useAddProjectMemberMutation(projectId);
   const updateProjectMemberMutation = useUpdateProjectMemberMutation(projectId);
   const removeProjectMemberMutation = useRemoveProjectMemberMutation(projectId);
   const deleteProjectMutation = useDeleteProjectMutation(projectId);
+  const createProjectTaskMutation = useCreateProjectTaskMutation(projectId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
   const [showAddMemberSuccess, setShowAddMemberSuccess] = useState(false);
+  const [showTaskSuccess, setShowTaskSuccess] = useState(false);
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, ProjectMemberRole>>({});
   const [memberActionSuccess, setMemberActionSuccess] = useState<string | null>(null);
   const [activeRoleUpdateUserId, setActiveRoleUpdateUserId] = useState<string | null>(null);
@@ -113,6 +122,21 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     },
     resolver: zodResolver(addProjectMemberSchema),
   });
+  const {
+    formState: { errors: taskErrors },
+    handleSubmit: handleTaskSubmit,
+    register: registerTask,
+    reset: resetTaskForm,
+  } = useForm<CreateProjectTaskFormValues>({
+    defaultValues: {
+      title: "",
+      description: "",
+      start_date: "",
+      deadline: "",
+      primary_assignee_id: "",
+    },
+    resolver: zodResolver(createProjectTaskSchema),
+  });
 
   const projectError = isApiError(createProjectMutation.error)
     ? createProjectMutation.error
@@ -134,6 +158,9 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     : null;
   const removeProjectMemberError = isApiError(removeProjectMemberMutation.error)
     ? removeProjectMemberMutation.error
+    : null;
+  const createProjectTaskError = isApiError(createProjectTaskMutation.error)
+    ? createProjectTaskMutation.error
     : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
@@ -192,6 +219,23 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       ? addProjectMemberError.message
       : null;
   const memberActionError = updateProjectMemberError ?? removeProjectMemberError;
+  const serverTaskTitleError = getDetailMessages(createProjectTaskError?.details.title)[0];
+  const serverTaskDescriptionError = getDetailMessages(createProjectTaskError?.details.description)[0];
+  const serverTaskStartDateError = getDetailMessages(createProjectTaskError?.details.start_date)[0];
+  const serverTaskDeadlineError = getDetailMessages(createProjectTaskError?.details.deadline)[0];
+  const serverTaskAssigneeError = getDetailMessages(
+    createProjectTaskError?.details.primary_assignee_id,
+  )[0];
+  const serverTaskFormError =
+    createProjectTaskError &&
+    !serverTaskTitleError &&
+    !serverTaskDescriptionError &&
+    !serverTaskStartDateError &&
+    !serverTaskDeadlineError &&
+    !serverTaskAssigneeError &&
+    createProjectTaskError.code !== "PROJECT_PERMISSION_DENIED"
+      ? createProjectTaskError.message
+      : null;
 
   useEffect(() => {
     if (!projectQuery.data) {
@@ -233,6 +277,18 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       role: "TEAM_MEMBER",
     });
   }, [projectId, resetMemberForm]);
+
+  useEffect(() => {
+    setShowTaskSuccess(false);
+    createProjectTaskMutation.reset();
+    resetTaskForm({
+      title: "",
+      description: "",
+      start_date: "",
+      deadline: "",
+      primary_assignee_id: "",
+    });
+  }, [projectId, resetTaskForm]);
 
   useEffect(() => {
     if (!projectMembersQuery.data) {
@@ -359,6 +415,162 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                 Project code is locked after creation and cannot be edited.
               </div>
             </div>
+          ) : null}
+        </Panel>
+
+        <Panel className="project-tasks-panel">
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Project tasks</h2>
+            <p className="panel-heading__body">
+              Create the first tracked tasks inside the selected project and keep them visible in the same workspace.
+            </p>
+          </div>
+          {!projectId ? (
+            <StatusMessage title="Project tasks are unavailable">
+              Select a project detail route before managing tasks.
+            </StatusMessage>
+          ) : null}
+          {projectId && projectTasksQuery.isPending ? (
+            <StatusMessage title="Loading tasks">
+              The current project task list is loading from the backend.
+            </StatusMessage>
+          ) : null}
+          {projectId && isApiError(projectTasksQuery.error) ? (
+            <StatusMessage tone="error" title="Task list unavailable">
+              {projectTasksQuery.error.message}
+            </StatusMessage>
+          ) : null}
+          {projectId &&
+          !projectTasksQuery.isPending &&
+          !projectTasksQuery.error &&
+          (projectTasksQuery.data?.length ?? 0) === 0 ? (
+            <StatusMessage title="No project tasks yet">
+              Create the first task to start building project-level work tracking beyond membership setup.
+            </StatusMessage>
+          ) : null}
+          {projectTasksQuery.data?.length ? (
+            <div className="task-list" role="list" aria-label="Project tasks">
+              {projectTasksQuery.data.map((task) => (
+                <div className="task-list__item" key={task.id} role="listitem">
+                  <div className="task-list__identity">
+                    <span className="task-list__key">{task.task_key}</span>
+                    <strong>{task.title}</strong>
+                    <span>{task.description || "No description yet."}</span>
+                  </div>
+                  <div className="task-list__meta">
+                    <span className="task-status-pill">{task.status.name}</span>
+                    <span>{task.primary_assignee?.name || "Unassigned"}</span>
+                    <span>{task.deadline ? `Due ${task.deadline}` : "No deadline"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {projectQuery.data && !projectQuery.data.can_edit ? (
+            <StatusMessage tone="warning" title="Task creation is restricted">
+              Only Admins and active Project Managers can create tasks in this project.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data?.can_edit ? (
+            <form
+              className="form-stack"
+              onSubmit={handleTaskSubmit((values) => {
+                setShowTaskSuccess(false);
+                createProjectTaskMutation.reset();
+                createProjectTaskMutation.mutate(
+                  {
+                    title: values.title,
+                    description: values.description || undefined,
+                    start_date: values.start_date || null,
+                    deadline: values.deadline || null,
+                    primary_assignee_id: values.primary_assignee_id || null,
+                  },
+                  {
+                    onSuccess: () => {
+                      setShowTaskSuccess(true);
+                      resetTaskForm({
+                        title: "",
+                        description: "",
+                        start_date: "",
+                        deadline: "",
+                        primary_assignee_id: values.primary_assignee_id,
+                      });
+                    },
+                  },
+                );
+              })}
+            >
+              <Field
+                error={taskErrors.title?.message ?? serverTaskTitleError}
+                label="Task title"
+                type="text"
+                {...registerTask("title")}
+              />
+              <label className="field" htmlFor="task-description">
+                <span className="field__label">Task description</span>
+                <textarea
+                  className="field__input field__input--textarea"
+                  id="task-description"
+                  rows={4}
+                  {...registerTask("description")}
+                />
+                {taskErrors.description?.message ?? serverTaskDescriptionError ? (
+                  <span className="field__error" role="alert">
+                    {taskErrors.description?.message ?? serverTaskDescriptionError}
+                  </span>
+                ) : null}
+              </label>
+              <label className="field" htmlFor="task-assignee">
+                <span className="field__label">Primary assignee</span>
+                <select className="field__input" id="task-assignee" {...registerTask("primary_assignee_id")}>
+                  <option value="">Unassigned</option>
+                  {projectMembersQuery.data
+                    ?.filter((member) => member.is_active)
+                    .map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.name} ({member.role})
+                      </option>
+                    ))}
+                </select>
+                {taskErrors.primary_assignee_id?.message ?? serverTaskAssigneeError ? (
+                  <span className="field__error" role="alert">
+                    {taskErrors.primary_assignee_id?.message ?? serverTaskAssigneeError}
+                  </span>
+                ) : null}
+              </label>
+              <div className="split-fields">
+                <Field
+                  error={taskErrors.start_date?.message ?? serverTaskStartDateError}
+                  label="Task start date"
+                  type="date"
+                  {...registerTask("start_date")}
+                />
+                <Field
+                  error={taskErrors.deadline?.message ?? serverTaskDeadlineError}
+                  label="Task deadline"
+                  type="date"
+                  {...registerTask("deadline")}
+                />
+              </div>
+              {createProjectTaskError?.code === "PROJECT_PERMISSION_DENIED" ? (
+                <StatusMessage tone="error" title="Permission denied">
+                  {createProjectTaskError.message}
+                </StatusMessage>
+              ) : null}
+              {serverTaskFormError ? (
+                <StatusMessage tone="error" title="Task creation failed">
+                  {serverTaskFormError}
+                </StatusMessage>
+              ) : null}
+              {showTaskSuccess ? (
+                <StatusMessage title="Task created">
+                  The project task list was updated with the new TODO task.
+                </StatusMessage>
+              ) : null}
+              <Button disabled={createProjectTaskMutation.isPending} type="submit">
+                {createProjectTaskMutation.isPending ? "Creating task..." : "Create task"}
+              </Button>
+            </form>
           ) : null}
         </Panel>
 

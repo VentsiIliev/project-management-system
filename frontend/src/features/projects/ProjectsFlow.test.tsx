@@ -86,6 +86,28 @@ function memberListResponse(overrides?: Array<Record<string, unknown>>) {
   );
 }
 
+function taskListResponse(overrides?: Array<Record<string, unknown>>) {
+  return (
+    overrides ?? [
+      {
+        id: "task-1",
+        task_key: "ENG-1",
+        title: "Initial task",
+        description: "Track the first delivery item.",
+        status: { name: "TODO" },
+        primary_assignee: {
+          id: "user-1",
+          name: "Jane Doe",
+        },
+        start_date: "2026-05-01",
+        deadline: "2026-05-05",
+        version: 1,
+        created_at: "2026-05-01T10:00:00Z",
+      },
+    ]
+  );
+}
+
 describe("projects flow", () => {
   it("loads the accessible project list after login and opens a project detail route", async () => {
     const fetchMock = stubFetch((url) => {
@@ -126,6 +148,26 @@ describe("projects flow", () => {
           },
         });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({
+          body: {
+            tasks: taskListResponse([
+              {
+                id: "task-9",
+                task_key: "ENG-9",
+                title: "Initial task",
+                description: "Track the first delivery item.",
+                status: { name: "TODO" },
+                primary_assignee: null,
+                start_date: null,
+                deadline: null,
+                version: 1,
+                created_at: "2026-05-01T10:00:00Z",
+              },
+            ]),
+          },
+        });
+      }
 
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -137,7 +179,9 @@ describe("projects flow", () => {
 
     expect(await screen.findAllByText("ENG")).toHaveLength(2);
     expect(await screen.findByText("Owner One")).toBeInTheDocument();
+    expect(await screen.findByText("Initial task")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/projects/project-1/members", expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith("/api/projects/project-1/tasks", expect.anything());
   });
 
   it("shows an unavailable state when a project route is not visible to the current account", async () => {
@@ -194,6 +238,9 @@ describe("projects flow", () => {
       if (url === "/api/projects/project-1/members") {
         return jsonResponse({ body: { members: memberListResponse() } });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: [] } });
+      }
 
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -203,9 +250,9 @@ describe("projects flow", () => {
 
     await user.type(await screen.findByLabelText(/project name/i), "Engineering Platform");
     await user.type(screen.getByLabelText(/project code/i), "eng");
-    await user.type(screen.getByLabelText(/description/i), "Internal engineering work");
-    await user.type(screen.getByLabelText(/start date/i), "2026-05-01");
-    await user.type(screen.getByLabelText(/end date/i), "2026-06-01");
+    await user.type(screen.getByLabelText(/^description$/i), "Internal engineering work");
+    await user.type(screen.getByLabelText(/^start date$/i), "2026-05-01");
+    await user.type(screen.getByLabelText(/^end date$/i), "2026-06-01");
     await user.click(screen.getByRole("button", { name: /create project/i }));
 
     expect(await screen.findByText(/project created/i)).toBeInTheDocument();
@@ -279,6 +326,9 @@ describe("projects flow", () => {
       }
       if (url === "/api/projects/project-1/members") {
         return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
       }
       if (url === "/api/projects/project-1" && init?.method === "PATCH") {
         return jsonResponse({
@@ -369,6 +419,9 @@ describe("projects flow", () => {
           },
         });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
 
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -377,6 +430,77 @@ describe("projects flow", () => {
 
     expect(await screen.findByText(/member changes are restricted/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add member/i })).not.toBeInTheDocument();
+  });
+
+  it("creates a project task from the workspace and updates the visible task list", async () => {
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { tasks: [] } });
+      }
+      if (url === "/api/projects/project-1/tasks" && init?.method === "POST") {
+        return jsonResponse({
+          status: 201,
+          body: {
+            task: {
+              id: "task-1",
+              task_key: "ENG-1",
+              title: "Implement login",
+              description: "Add authentication flow",
+              status: { name: "TODO" },
+              primary_assignee: {
+                id: "user-1",
+                name: "Jane Doe",
+              },
+              start_date: "2026-05-01",
+              deadline: "2026-05-05",
+              version: 1,
+              created_at: "2026-05-01T10:00:00Z",
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.type(await screen.findByLabelText(/task title/i), "Implement login");
+    await user.type(screen.getByLabelText(/task description/i), "Add authentication flow");
+    await user.selectOptions(screen.getByLabelText(/primary assignee/i), "user-1");
+    await user.type(screen.getByLabelText(/task start date/i), "2026-05-01");
+    await user.type(screen.getByLabelText(/task deadline/i), "2026-05-05");
+    await user.click(screen.getByRole("button", { name: /create task/i }));
+
+    expect(await screen.findByText(/task created/i)).toBeInTheDocument();
+    expect(await screen.findByText("ENG-1")).toBeInTheDocument();
+    expect(await screen.findByText("Implement login")).toBeInTheDocument();
+    const taskCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1/tasks" && requestInit?.method === "POST",
+    );
+    expect(taskCall?.[1]?.body).toBe(
+      JSON.stringify({
+        title: "Implement login",
+        description: "Add authentication flow",
+        start_date: "2026-05-01",
+        deadline: "2026-05-05",
+        primary_assignee_id: "user-1",
+      }),
+    );
   });
 
   it("adds a project member from the workspace and updates the visible member list", async () => {
@@ -406,6 +530,9 @@ describe("projects flow", () => {
             },
           },
         });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
       }
 
       throw new Error(`Unexpected request: ${url}`);
@@ -475,6 +602,9 @@ describe("projects flow", () => {
             ]),
           },
         });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
       }
       if (url === "/api/projects/project-1/members/user-1" && init?.method === "PATCH") {
         currentRole = "TEAM_MEMBER";
@@ -567,6 +697,9 @@ describe("projects flow", () => {
           },
         });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
       if (url === "/api/projects/project-1/members/user-1" && init?.method === "DELETE") {
         removed = true;
         return new Response(null, { status: 204 });
@@ -606,6 +739,9 @@ describe("projects flow", () => {
       if (url === "/api/projects/project-1/members") {
         return jsonResponse({ body: { members: memberListResponse() } });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
 
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -642,6 +778,9 @@ describe("projects flow", () => {
       if (url === "/api/projects/project-1/members") {
         return jsonResponse({ body: { members: memberListResponse() } });
       }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
       if (url === "/api/projects/project-1" && init?.method === "DELETE") {
         deleteSeen = true;
         return new Response(null, { status: 204 });
@@ -669,5 +808,89 @@ describe("projects flow", () => {
         requestUrl === "/api/projects/project-1" && requestInit?.method === "DELETE",
     );
     expect(deleteCall?.[1]?.body).toBe(JSON.stringify({ confirm_project_delete: true }));
+  });
+
+  it("shows task creation as restricted for team members while still listing project tasks", async () => {
+    stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({
+          body: sessionResponse({
+            id: "user-2",
+            email: "member@example.com",
+            name: "Team Member",
+            is_admin: false,
+          }),
+        });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({
+          body: {
+            projects: projectListResponse({ owner_id: "owner-1" }),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({
+          body: {
+            project: projectDetailResponse({
+              owner_id: "owner-1",
+              can_edit: false,
+              can_delete: false,
+              can_manage_members: false,
+            }),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({
+          body: {
+            members: [
+              {
+                user_id: "owner-1",
+                email: "owner@example.com",
+                name: "Owner One",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+              {
+                user_id: "user-2",
+                email: "member@example.com",
+                name: "Team Member",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ],
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({
+          body: {
+            tasks: taskListResponse([
+              {
+                id: "task-2",
+                task_key: "ENG-2",
+                title: "Visible task",
+                description: null,
+                status: { name: "TODO" },
+                primary_assignee: null,
+                start_date: null,
+                deadline: null,
+                version: 1,
+                created_at: "2026-05-01T10:00:00Z",
+              },
+            ]),
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText(/task creation is restricted/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create task/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Visible task")).toBeInTheDocument();
   });
 });

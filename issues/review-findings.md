@@ -40,6 +40,8 @@
 
 4. `US-016 Remove Project Member` includes removed-member task-label behavior in the acceptance criteria, but task read models are not implemented in the current branch stack yet. The grouped `US-015` and `US-016` slice owns membership role updates, membership soft-delete, and immediate project-access loss, while deferring task-label rendering to the future task-view slices.
 
+5. `US-017 Create Task` depends conceptually on later catalog stories for statuses and priorities, but those data-driven catalogs are separate backlog items (`US-028` and `US-053`). The working slice for `US-017` uses a minimal app-level `TODO` status enum and no priority field yet, while keeping the API and UI scoped to first-task creation plus immediate project-scoped visibility.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

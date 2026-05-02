@@ -2,7 +2,7 @@
 
 ## Current State
 
-- The auth, project CRUD, and first full membership-management stack is now landed locally through `US-016`, with the `US-010` immutable-code invariant delivered alongside the edit slice.
+- The auth, project CRUD, first full membership-management stack, and the first task-creation foundation are now landed locally through `US-017`, with the `US-010` immutable-code invariant delivered alongside the edit slice.
 - Current stacked branch and PR chain:
   - `us-001-auth-foundation` -> PR `#79`
   - `us-002-forced-first-login-password-reset` -> PR `#80`
@@ -17,9 +17,10 @@
   - `us-012-edit-project` -> PR `#92`
   - `us-013-delete-project` -> PR `#93`
   - `us-014-add-project-member` -> PR `#94`
-  - `us-015-016-membership-management` -> PR pending
-- Current working branch is `us-015-016-membership-management`.
-- GitHub issue states in this stack are `:owner-review` for `#6`, `#7`, `#8`, `#9`, `#10`, `#11`, `#12`, `#13`, `#14`, `#15`, `#16`, `#17`, `#18`, and `#19`, with grouped `US-015` and `US-016` implemented locally and waiting for issue sync.
+  - `us-015-016-membership-management` -> PR `#95`
+  - `us-017-create-task` -> PR pending
+- Current working branch is `us-017-create-task`.
+- GitHub issue states in this stack are `:owner-review` for `#6`, `#7`, `#8`, `#9`, `#10`, `#11`, `#12`, `#13`, `#14`, `#15`, `#16`, `#17`, `#18`, `#19`, `#20`, and `#21`, with `US-017` implemented locally and waiting for issue sync.
 - Known unrelated local changes still present and intentionally untouched:
   - modified `.gitignore`
   - modified `AGENTS.md`
@@ -29,8 +30,8 @@
 
 ## Next Recommended Step
 
-- Wave 2 is effectively complete for the currently implemented local dependency chain.
-- `US-042 View Project Activity` is the only remaining Wave 2 leftover in the story index, but it still depends on `US-040 Record Task Activity`, which is not implemented in the current branch stack.
+- Wave 2 is complete for the current branch stack, and the task track is now opened by `US-017`.
+- Best next slice is to normalize task metadata by grouping `US-028 Database-Driven Statuses` with `US-053 Use Database-Driven Priorities` before wider task CRUD expands.
 - Reuse the current project conventions:
   - `POST /api/projects` for create
   - `GET /api/projects` for the authenticated visible-project list
@@ -41,6 +42,8 @@
   - `POST /api/projects/{project_id}/members` for add-member with `user_id` and `role`
   - `PATCH /api/projects/{project_id}/members/{user_id}` for role changes
   - `DELETE /api/projects/{project_id}/members/{user_id}` for membership soft-delete
+  - `GET /api/projects/{project_id}/tasks` for visible project-scoped task reads
+  - `POST /api/projects/{project_id}/tasks` for first-task creation with default TODO state
   - project `code` is immutable on PATCH and must return `PROJECT_CODE_IMMUTABLE`
 
 ## Risks Or Open Questions
@@ -54,6 +57,7 @@
 - The current project detail response now includes `can_edit`, `can_delete`, and `can_manage_members`. Future membership stories can keep using those for the existing workspace until a richer permissions object becomes worth introducing.
 - The current add-member UI uses the spec `user_id` request shape directly because there is still no user-search or user-list surface in the branch stack.
 - The membership-management slice returns `PROJECT_MEMBER_NOT_FOUND` when a target active membership does not exist, and removed-member task labeling is still intentionally deferred until task read models exist.
+- The current `US-017` slice uses an app-level `TODO` task status enum as temporary foundation work. Do not assume database-driven status or priority catalogs exist yet when extending task flows.
 
 ## Relevant Files
 
@@ -65,9 +69,11 @@
  - `issues/stories/us-014-add-project-member.md`
  - `issues/stories/us-015-change-project-member-role.md`
  - `issues/stories/us-016-remove-project-member.md`
+ - `issues/stories/us-017-create-task.md`
  - `skills/context/handoffs/2026-05-02-us-009-create-project.md`
  - `skills/context/handoffs/2026-05-02-us-011-view-project.md`
  - `skills/context/handoffs/2026-05-02-us-012-edit-project-and-us-010-immutable-project-code.md`
  - `skills/context/handoffs/2026-05-02-us-013-delete-project.md`
  - `skills/context/handoffs/2026-05-02-us-014-add-project-member.md`
  - `skills/context/handoffs/2026-05-02-us-015-us-016-membership-management.md`
+ - `skills/context/handoffs/2026-05-02-us-017-create-task.md`
