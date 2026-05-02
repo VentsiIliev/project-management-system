@@ -6,6 +6,7 @@ import {
   Route,
   Routes,
   useOutletContext,
+  useParams,
 } from "react-router-dom";
 
 import { LoginPage } from "../../features/auth/pages/LoginPage";
@@ -39,6 +40,7 @@ function LoginRoute() {
 
 function ProtectedShellRoute() {
   const { session } = useSessionContext();
+  const { projectId } = useParams();
 
   if (!session) {
     return <Navigate replace to="/login" />;
@@ -48,7 +50,7 @@ function ProtectedShellRoute() {
     return <Navigate replace to="/reset-password" />;
   }
 
-  return <ProjectsHomePage user={session} />;
+  return <ProjectsHomePage projectId={projectId ?? null} user={session} />;
 }
 
 function ResetRequiredRoute() {
@@ -93,6 +95,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<SessionLayout />} path="/">
         <Route element={<ProtectedShellRoute />} index />
+        <Route element={<ProtectedShellRoute />} path="projects/:projectId" />
         <Route element={<LoginRoute />} path="login" />
         <Route element={<ResetRequiredRoute />} path="reset-password" />
         <Route element={<FallbackRoute />} path="*" />

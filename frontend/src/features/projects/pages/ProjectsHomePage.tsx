@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 
 import { isApiError } from "../../../api/client";
 import { Button } from "../../../components/Button";
@@ -10,13 +11,15 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { AppShellPage } from "../../auth/pages/AppShellPage";
 import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
+import { useProjectQuery } from "../hooks/useProjectQuery";
+import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import {
   createProjectSchema,
   type CreateProjectFormValues,
 } from "../schemas/createProjectSchema";
-import { type Project } from "../types";
 
 type ProjectsHomePageProps = {
+  projectId: string | null;
   user: SessionUser;
 };
 
@@ -34,9 +37,12 @@ function getDetailMessages(detail: unknown): string[] {
   return [];
 }
 
-export function ProjectsHomePage({ user }: ProjectsHomePageProps) {
+export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
+  const navigate = useNavigate();
   const createProjectMutation = useCreateProjectMutation();
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const projectsQuery = useProjectsQuery();
+  const projectQuery = useProjectQuery(projectId);
+  const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const {
     formState: { errors },
     handleSubmit,
@@ -55,6 +61,9 @@ export function ProjectsHomePage({ user }: ProjectsHomePageProps) {
   const projectError = isApiError(createProjectMutation.error)
     ? createProjectMutation.error
     : null;
+  const selectedProjectError = isApiError(projectQuery.error)
+    ? projectQuery.error
+    : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
   const serverStartDateError = getDetailMessages(projectError?.details.start_date)[0];
@@ -63,41 +72,147 @@ export function ProjectsHomePage({ user }: ProjectsHomePageProps) {
   const serverFormError =
     projectError?.code === "PROJECT_PERMISSION_DENIED"
       ? null
-      :
-    Object.entries(projectError?.details ?? {})
-      .flatMap(([field, detail]) =>
-        ["name", "code", "description", "start_date", "end_date"].includes(field)
-          ? []
-          : getDetailMessages(detail),
-      )[0] ??
-    (projectError &&
-    !serverNameError &&
-    !serverCodeError &&
-    !serverStartDateError &&
-    !serverEndDateError &&
-    !serverDescriptionError
-      ? projectError.message
-      : null);
+      : Object.entries(projectError?.details ?? {})
+          .flatMap(([field, detail]) =>
+            ["name", "code", "description", "start_date", "end_date"].includes(field)
+              ? []
+              : getDetailMessages(detail),
+          )[0] ??
+        (projectError &&
+        !serverNameError &&
+        !serverCodeError &&
+        !serverStartDateError &&
+        !serverEndDateError &&
+        !serverDescriptionError
+          ? projectError.message
+          : null);
 
   return (
     <AppShellPage user={user}>
-      <div className="workspace-grid">
+      <div className="workspace-grid workspace-grid--projects">
         <Panel>
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Accessible projects</h2>
+            <p className="panel-heading__body">
+              Open any project you can access from the current session. Admins see the active workspace; members only
+              see projects where their membership is still active.
+            </p>
+          </div>
+          {projectsQuery.isPending ? (
+            <StatusMessage title="Loading projects">
+              The shell is fetching the current project access list.
+            </StatusMessage>
+          ) : null}
+          {isApiError(projectsQuery.error) ? (
+            <StatusMessage tone="error" title="Project list unavailable">
+              {projectsQuery.error.message}
+            </StatusMessage>
+          ) : null}
+          {!projectsQuery.isPending &&
+          !projectsQuery.error &&
+          (projectsQuery.data?.length ?? 0) === 0 ? (
+            <StatusMessage title="No accessible projects yet">
+              Create the first project from this workspace to make a real project route available after login.
+            </StatusMessage>
+          ) : null}
+          {projectsQuery.data?.length ? (
+            <div className="project-list" role="list" aria-label="Accessible projects">
+              {projectsQuery.data.map((project) => {
+                const isSelected = project.id === projectId;
+                return (
+                  <button
+                    className={`project-list__item${isSelected ? " project-list__item--active" : ""}`}
+                    key={project.id}
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    type="button"
+                  >
+                    <span className="project-list__code">{project.code}</span>
+                    <span className="project-list__content">
+                      <strong>{project.name}</strong>
+                      <span>{project.description || "No description yet."}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </Panel>
+
+        <Panel>
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Project details</h2>
+            <p className="panel-heading__body">
+              Opening a project now resolves a dedicated protected route instead of leaving the app on a static
+              placeholder.
+            </p>
+          </div>
+          {!projectId ? (
+            <StatusMessage title="Select a project">
+              Choose a project from the list to load its details in the workspace.
+            </StatusMessage>
+          ) : null}
+          {projectId && projectQuery.isPending ? (
+            <StatusMessage title="Loading project details">
+              The selected project route is resolving against the backend.
+            </StatusMessage>
+          ) : null}
+          {projectId && selectedProjectError?.code === "PROJECT_NOT_FOUND" ? (
+            <StatusMessage tone="warning" title="Project unavailable">
+              This project is not visible to the current account or no longer exists in the active workspace.
+            </StatusMessage>
+          ) : null}
+          {projectId &&
+          selectedProjectError &&
+          selectedProjectError.code !== "PROJECT_NOT_FOUND" ? (
+            <StatusMessage tone="error" title="Project detail unavailable">
+              {selectedProjectError.message}
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data ? (
+            <div className="project-summary">
+              <div className="project-summary__code">{projectQuery.data.code}</div>
+              <h3 className="card-title">{projectQuery.data.name}</h3>
+              <p className="shell__summary project-summary__description">
+                {projectQuery.data.description || "No description was provided for this project."}
+              </p>
+              <dl className="details-list">
+                <div>
+                  <dt>Owner ID</dt>
+                  <dd>{projectQuery.data.owner_id}</dd>
+                </div>
+                <div>
+                  <dt>Task counter</dt>
+                  <dd>{projectQuery.data.task_counter}</dd>
+                </div>
+                <div>
+                  <dt>Start date</dt>
+                  <dd>{projectQuery.data.start_date || "Not set"}</dd>
+                </div>
+                <div>
+                  <dt>End date</dt>
+                  <dd>{projectQuery.data.end_date || "Not set"}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </Panel>
+
+        <Panel className="project-create-panel">
           <div className="panel-heading">
             <h2 className="panel-heading__title">Create a project</h2>
             <p className="panel-heading__body">
-              Seed the first real product space from the authenticated shell. Project codes are normalized to uppercase
-              on submit and remain stable for later task-key generation.
+              Keep the project-creation flow in place while the shell grows into the real project workspace.
             </p>
           </div>
           <form
             className="form-stack"
             onSubmit={handleSubmit((values) => {
               createProjectMutation.reset();
-              setCreatedProject(null);
+              setLastCreatedProjectId(null);
               createProjectMutation.mutate(values, {
                 onSuccess: (project) => {
-                  setCreatedProject(project);
+                  setLastCreatedProjectId(project.id);
+                  navigate(`/projects/${project.id}`);
                 },
               });
             })}
@@ -152,50 +267,15 @@ export function ProjectsHomePage({ user }: ProjectsHomePageProps) {
                 {serverFormError}
               </StatusMessage>
             ) : null}
+            {lastCreatedProjectId && projectId === lastCreatedProjectId && !projectError ? (
+              <StatusMessage title="Project created">
+                The new project was added to the accessible list and opened directly in the workspace.
+              </StatusMessage>
+            ) : null}
             <Button disabled={createProjectMutation.isPending} type="submit">
               {createProjectMutation.isPending ? "Creating project..." : "Create project"}
             </Button>
           </form>
-        </Panel>
-
-        <Panel>
-          <div className="panel-heading">
-            <h2 className="panel-heading__title">Latest created project</h2>
-            <p className="panel-heading__body">
-              Successful project creation returns the canonical backend payload directly into the shell.
-            </p>
-          </div>
-          {createdProject ? (
-            <div className="project-summary">
-              <div className="project-summary__code">{createdProject.code}</div>
-              <h3 className="card-title">{createdProject.name}</h3>
-              <p className="shell__summary project-summary__description">
-                {createdProject.description || "No description was provided for this project."}
-              </p>
-              <dl className="details-list">
-                <div>
-                  <dt>Owner ID</dt>
-                  <dd>{createdProject.owner_id}</dd>
-                </div>
-                <div>
-                  <dt>Task counter</dt>
-                  <dd>{createdProject.task_counter}</dd>
-                </div>
-                <div>
-                  <dt>Start date</dt>
-                  <dd>{createdProject.start_date || "Not set"}</dd>
-                </div>
-                <div>
-                  <dt>End date</dt>
-                  <dd>{createdProject.end_date || "Not set"}</dd>
-                </div>
-              </dl>
-            </div>
-          ) : (
-            <StatusMessage title="No project created yet">
-              Submit the form to see the first created project payload rendered in the main application shell.
-            </StatusMessage>
-          )}
         </Panel>
       </div>
     </AppShellPage>
