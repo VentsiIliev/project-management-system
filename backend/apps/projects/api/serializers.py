@@ -1,0 +1,20 @@
+from rest_framework import serializers
+
+
+class CreateProjectSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    code = serializers.CharField(max_length=32)
+    description = serializers.CharField(required=False, allow_blank=True)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    end_date = serializers.DateField(required=False, allow_null=True)
+
+
+class ProjectSerializer(serializers.Serializer):
+    id = serializers.UUIDField(format="hex_verbose")
+    name = serializers.CharField()
+    code = serializers.CharField()
+    description = serializers.CharField(allow_null=True)
+    owner_id = serializers.UUIDField(format="hex_verbose")
+    task_counter = serializers.IntegerField()
+    start_date = serializers.DateField(allow_null=True)
+    end_date = serializers.DateField(allow_null=True)

@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "channels",
     "apps.core",
+    "apps.projects",
+    "apps.memberships",
     "apps.users",
 ]
 

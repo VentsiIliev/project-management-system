@@ -1,8 +1,21 @@
-﻿# US-009 - Create Project  ## Metadata - Area: 3. Projects - GitHub labels: `user-story`, `mvp`, `area:projects` - Suggested status: `Backlog` - Suggested wave: `Wave 0` - Depends on: US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-009 - Create Project
+
+## Metadata
+
+- Area: 3. Projects
+- GitHub labels: `user-story`, `mvp`, `area:projects`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 0`
+- Depends on: `US-001`
+- Parallelization note: This slice can start once auth is in place. It should stay independent of project edit, delete, member-management, and task stories.
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to create projects  
 **So that** teams can organize work.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to create projects  
 **When** I provide a project name, unique code, and optional dates  
@@ -14,44 +27,58 @@
 
 **Given** I am a Team Member  
 **When** I attempt to create a project  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/maintain project schema with UUID, owner, immutable code, task counter, dates, and soft delete.
-- [ ] Add unique/index constraints for project code and owner lookups.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement project endpoints with pagination and permission checks.
-- [ ] Enforce immutable project code on PATCH.
-- [ ] Validate project date ranges.
-- [ ] Soft-delete project, tasks, subtasks, memberships, dependencies visibility with confirmation flag.
-- [ ] Write project activity logs.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build project create/edit/detail/list UI.
-- [ ] Prevent code editing after creation in the UI.
-- [ ] Show destructive delete confirmation text exactly as specified.
+- [x] Add the owning `projects` and `memberships` models needed for project creation:
+  - `Project` with `id`, `name`, `code`, `description`, `owner`, `task_counter`, optional dates, timestamps, and `deleted_at`
+  - `ProjectMembership` with `project`, `user`, `role`, timestamps, and `deleted_at`
+- [x] Add migrations and constraints for unique project `code`, `owner` lookup indexing, and unique active membership pairs.
+- [x] Implement `POST /api/projects` in the `projects` module only.
+- [x] Validate that `end_date >= start_date` when both are present.
+- [x] Reject duplicate project codes with a structured validation error.
+- [x] Model create permission as:
+  - Admin is always allowed
+  - active users with at least one active `PROJECT_MANAGER` membership are allowed
+  - Team Members and non-members without that role are denied
+- [x] On successful create, persist the authenticated user as `owner` and create an active `PROJECT_MANAGER` membership for that user on the new project.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test immutable code, date validation, and soft-delete behavior.
-- [ ] Integration test project CRUD and deleted-project exclusion from normal views.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Replace the auth-only protected-shell placeholder with a real project workspace entry screen.
+- [x] Add a project creation form with fields for `name`, `code`, `description`, `start_date`, and `end_date`.
+- [x] Submit to the shared API client and surface success, validation, and permission-denied states.
+- [x] Show the created project details in the authenticated shell after a successful create so the UI visibly changes after login.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add backend integration coverage for successful Admin project creation.
+- [x] Add backend integration coverage for successful Project Manager project creation using an active membership fixture.
+- [x] Add backend integration coverage for invalid date ranges.
+- [x] Add backend integration coverage for duplicate code rejection.
+- [x] Add backend integration coverage showing Team Members are denied.
+- [x] Add frontend integration coverage for successful project creation from the protected shell.
+- [x] Add frontend integration coverage for server validation feedback and permission-denied feedback.
+
+## Dependencies And Notes
+
+- This slice intentionally stops at project creation. It does not implement:
+  - project list or detail APIs
+  - project edit or immutable-code update flows
+  - project deletion
+  - member management UI or APIs beyond the creator membership written on create
+  - task, Kanban, or Gantt flows
+- Planning conflict note:
+  - the spec says Project Managers can create projects, but the current role model is project-scoped rather than global. The working implementation rule in this slice is “user has at least one active `PROJECT_MANAGER` membership somewhere,” and the backlog review notes should record that ambiguity.
+
+## Definition Of Done
+
+- `POST /api/projects` exists and creates a project with the authenticated user as owner.
+- Valid requests create both the project row and a creator `PROJECT_MANAGER` membership row.
+- Invalid date ranges return a structured `VALIDATION_ERROR`.
+- Duplicate project codes return a structured validation error on `code`.
+- Team Members cannot create projects.
+- The authenticated frontend shell exposes a working create-project form and shows the created project details on success.

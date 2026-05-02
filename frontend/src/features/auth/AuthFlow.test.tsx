@@ -61,7 +61,7 @@ describe("auth flow", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /session established/i }),
+      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/jane@example.com/i)).toBeInTheDocument();
     expect(screen.queryByText(/session expired after inactivity/i)).not.toBeInTheDocument();
@@ -188,7 +188,7 @@ describe("auth flow", () => {
     renderApp(["/"]);
 
     expect(
-      await screen.findByRole("heading", { name: /session established/i }),
+      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
     ).toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
   });
@@ -216,6 +216,7 @@ describe("auth flow", () => {
     await waitFor(() => {
       expect(
         screen.queryByRole("heading", { name: /session established/i }),
+        
       ).not.toBeInTheDocument();
     });
   });
@@ -350,7 +351,7 @@ describe("auth flow", () => {
     await user.click(screen.getByRole("button", { name: /set new password/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /session established/i }),
+      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {
@@ -476,7 +477,7 @@ describe("auth flow", () => {
     );
     await user.click(screen.getByRole("button", { name: /set new password/i }));
 
-    await screen.findByRole("heading", { name: /session established/i });
+    await screen.findByRole("heading", { name: /create and seed project spaces/i });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await waitFor(() => {
       expect(
@@ -503,7 +504,7 @@ describe("auth flow", () => {
     renderApp(["/reset-password"]);
 
     expect(
-      await screen.findByRole("heading", { name: /session established/i }),
+      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {

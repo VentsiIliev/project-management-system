@@ -30,6 +30,10 @@
 5. Fix encoding across the original Markdown files before publishing them to GitHub or reusing them for automation.
 6. Expand `README.md` or replace it with a proper project navigation document.
 
+## Execution-Time Conflicts
+
+1. `US-009 Create Project` says “Admin or Project Manager” can create a project, but the approved data model only defines a global Admin and project-scoped memberships. A project-scoped role cannot exist before a project exists, so there is no fully explicit spec path for “first project manager creates a project” without prior membership state. Working implementation for `US-009` uses: Admins may always create projects, and non-admin users may create projects only if they already hold at least one active `PROJECT_MANAGER` membership on another project.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

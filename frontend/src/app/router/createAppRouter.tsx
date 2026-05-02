@@ -8,11 +8,11 @@ import {
   useOutletContext,
 } from "react-router-dom";
 
-import { AppShellPage } from "../../features/auth/pages/AppShellPage";
 import { LoginPage } from "../../features/auth/pages/LoginPage";
 import { ResetRequiredPage } from "../../features/auth/pages/ResetRequiredPage";
 import { SessionGate } from "../../features/auth/components/SessionGate";
 import { type SessionUser } from "../../features/auth/types";
+import { ProjectsHomePage } from "../../features/projects/pages/ProjectsHomePage";
 
 type SessionContext = {
   session: SessionUser | null;
@@ -48,7 +48,7 @@ function ProtectedShellRoute() {
     return <Navigate replace to="/reset-password" />;
   }
 
-  return <AppShellPage user={session} />;
+  return <ProjectsHomePage user={session} />;
 }
 
 function ResetRequiredRoute() {
