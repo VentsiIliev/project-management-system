@@ -92,6 +92,8 @@ describe("auth flow", () => {
     expect(
       screen.queryByText(/session expired after inactivity/i),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/create account/i)).not.toBeInTheDocument();
   });
 
   it("redirects to the reset-required shell when login returns a forced reset state", async () => {
@@ -549,5 +551,28 @@ describe("auth flow", () => {
         name: /your temporary password must be replaced/i,
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("routes unauthenticated registration-style paths back to the login flow", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+    ]);
+
+    renderApp(["/register"]);
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/create account/i)).not.toBeInTheDocument();
   });
 });

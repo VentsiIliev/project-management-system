@@ -1250,6 +1250,21 @@ def test_current_user_requires_authentication():
     }
 
 
+def test_public_registration_endpoint_is_not_available():
+    client = APIClient()
+
+    response = client.post(
+        "/api/register",
+        {
+            "email": "public@example.com",
+            "password": "TempPassword123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 404
+
+
 def test_current_user_rejects_inactive_authenticated_session():
     user = create_user(is_active=False)
     client = APIClient()
