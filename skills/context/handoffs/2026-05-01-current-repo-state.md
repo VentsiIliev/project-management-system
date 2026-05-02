@@ -2,7 +2,7 @@
 
 ## Current State
 
-- The auth, admin-user, and first project-creation implementation stack is now landed locally through `US-009`.
+- The auth, admin-user, and first project read stack is now landed locally through `US-011`.
 - Current stacked branch and PR chain:
   - `us-001-auth-foundation` -> PR `#79`
   - `us-002-forced-first-login-password-reset` -> PR `#80`
@@ -12,40 +12,38 @@
   - `us-006-update-user` -> PR `#84`
   - `us-007-reset-user-password` -> PR `#85`
   - `us-008-deactivate-user` -> PR `#86`
-  - `us-009-create-project` -> PR pending
-- Current working branch is `us-009-create-project`.
-- GitHub issue states in this stack are `:owner-review` for `#6` through `#13`, with `#14` in implementation.
-- The only known unrelated local changes are:
+  - `us-009-create-project` -> PR `#87`
+  - `us-011-view-project` -> PR pending
+- Current working branch is `us-011-view-project`.
+- GitHub issue states in this stack are `:owner-review` for `#6` through `#14`, with `US-011` in implementation.
+- Known unrelated local changes still present and intentionally untouched:
   - modified `.gitignore`
+  - modified `AGENTS.md`
+  - modified `issues/sync-policy.md`
+  - untracked migration rename files under `backend/apps/memberships/migrations/` and `backend/apps/projects/migrations/`
 
 ## Next Recommended Step
 
-- Start `US-010 Immutable Project Code` or `US-011 View Project` from the top of the current stacked branch chain after `US-009` is pushed and opened for review.
-- Reuse the new project-create conventions:
-  - `POST /api/projects` as the first project-domain API
-  - creator becomes `owner` and receives an active `PROJECT_MANAGER` membership
-  - project creation permission is Admin or existing active `PROJECT_MANAGER` membership
-  - the authenticated shell now lands in a visible project workspace instead of an auth-only placeholder
+- Start `US-012 Edit Project` from the top of the current stacked branch chain now that a real project detail route exists.
+- `US-010 Immutable Project Code` can be delivered with or immediately before the update-path work because there is now a meaningful read surface and route contract for project details.
+- Reuse the current project conventions:
+  - `POST /api/projects` for create
+  - `GET /api/projects` for the authenticated visible-project list
+  - `GET /api/projects/{project_id}` for visible-project detail reads
+  - Admin sees all active projects; members see only active memberships
 
 ## Risks Or Open Questions
 
 - PRs are intentionally stacked. Changes to an earlier base PR can require rechecking downstream branches before continuing.
 - The admin user-management surface is still backend-only. Avoid inventing frontend admin routes until a story explicitly owns that slice.
-- The project frontend surface now exists at the protected-shell index route. Future project stories should build on that route instead of replacing it with another placeholder.
+- The project frontend surface now spans the protected-shell index route and `/projects/:projectId`. Future project stories should extend those routes instead of replacing them with another placeholder.
 - `US-008` revokes live sessions on deactivation. Do not undo that behavior by moving deactivation back into a passive field update.
-- The “Project Manager can create projects” wording remains ambiguous because memberships are project-scoped. The working rule is documented in `issues/review-findings.md` and the `US-009` handoff.
-- Context notes can drift if agents create rollup notes that overlap with existing per-story handoffs. Prefer updating this file for stack status and using story-specific notes only for story-specific implementation details.
+- The "Project Manager can create projects" wording remains ambiguous because memberships are project-scoped. The working rule is documented in `issues/review-findings.md` and the `US-009` handoff.
+- `US-010` is best treated as an update-path invariant rather than a standalone pre-read story, even though the planning order lists it before `US-011`.
 
 ## Relevant Files
 
-- `AGENTS.md`
-- `issues/stories/us-005-create-user.md`
-- `issues/stories/us-006-update-user.md`
-- `issues/stories/us-007-reset-user-password.md`
-- `issues/stories/us-008-deactivate-user.md`
 - `issues/stories/us-009-create-project.md`
-- `skills/context/handoffs/2026-05-01-us-005-create-user.md`
-- `skills/context/handoffs/2026-05-01-us-006-update-user.md`
-- `skills/context/handoffs/2026-05-01-us-007-reset-user-password.md`
-- `skills/context/handoffs/2026-05-01-us-008-deactivate-user.md`
+- `issues/stories/us-011-view-project.md`
 - `skills/context/handoffs/2026-05-02-us-009-create-project.md`
+- `skills/context/handoffs/2026-05-02-us-011-view-project.md`

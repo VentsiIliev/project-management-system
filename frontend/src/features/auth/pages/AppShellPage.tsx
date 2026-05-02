@@ -17,10 +17,10 @@ export function AppShellPage({ children, user }: AppShellPageProps) {
       <div className="shell__hero">
         <div>
           <p className="eyebrow">Project workspace</p>
-          <h1 className="shell__title">Create and seed project spaces</h1>
+          <h1 className="shell__title">Open and manage live project spaces</h1>
           <p className="shell__summary">
-            The authenticated shell now hosts the first project workflow. Use it to create project records, validate
-            date rules, and confirm the backend permission path from the signed-in account.
+            The authenticated shell now exposes project access, not just auth plumbing. Open projects you can see,
+            confirm membership-based visibility, and keep the create flow available from the same workspace.
           </p>
         </div>
         <div className="status-pill">
@@ -47,11 +47,11 @@ export function AppShellPage({ children, user }: AppShellPageProps) {
 
         <Panel>
           <p className="card-kicker">Current scope</p>
-          <h2 className="card-title">Project creation slice</h2>
+          <h2 className="card-title">Project access slice</h2>
           <ul className="bullet-list">
-            <li>Project records can be created through the protected API</li>
-            <li>Duplicate codes and invalid date ranges return structured errors</li>
-            <li>Team-member level accounts are denied by the backend permission rule</li>
+            <li>Visible projects are filtered by admin access or active membership</li>
+            <li>Project details open from a real protected route in the SPA</li>
+            <li>Project creation stays available in the same workspace</li>
           </ul>
           <Button
             disabled={logoutMutation.isPending}

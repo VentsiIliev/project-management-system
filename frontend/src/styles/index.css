@@ -308,6 +308,10 @@ textarea {
   gap: var(--space-5);
 }
 
+.workspace-grid--projects {
+  align-items: start;
+}
+
 .status-pill {
   display: inline-flex;
   flex-direction: column;
@@ -362,6 +366,73 @@ textarea {
   gap: var(--space-4);
 }
 
+.project-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.project-list__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-quick),
+    transform var(--motion-quick),
+    box-shadow var(--motion-quick);
+}
+
+.project-list__item:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-border-strong);
+}
+
+.project-list__item--active {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(10, 127, 101, 0.12);
+}
+
+.project-list__code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  background: var(--color-bg-ink);
+  color: var(--color-text-inverse);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.project-list__content {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.project-list__content strong {
+  font-size: 1rem;
+}
+
+.project-list__content span {
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.project-create-panel {
+  min-width: 0;
+}
+
 .project-summary__code {
   display: inline-flex;
   justify-self: start;
@@ -395,6 +466,14 @@ textarea {
 
   .workspace-grid {
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  }
+
+  .workspace-grid--projects {
+    grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1fr);
+  }
+
+  .project-create-panel {
+    grid-column: 1 / -1;
   }
 
   .split-fields {

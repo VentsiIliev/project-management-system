@@ -2,6 +2,7 @@ from django.db import transaction
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
+from apps.projects.selectors import visible_projects_for_user
 
 from .policies import can_create_project
 
@@ -18,6 +19,22 @@ class InvalidProjectDateRangeError(Exception):
     def __init__(self, details: dict[str, list[str]]):
         super().__init__("Invalid project date range.")
         self.details = details
+
+
+class ProjectNotFoundError(Exception):
+    pass
+
+
+def list_projects_for_actor(*, actor):
+    return list(visible_projects_for_user(user=actor))
+
+
+def get_project_for_actor(*, actor, project_id):
+    project = visible_projects_for_user(user=actor).filter(id=project_id).first()
+    if project is None:
+        raise ProjectNotFoundError
+
+    return project
 
 
 @transaction.atomic

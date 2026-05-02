@@ -7,7 +7,10 @@ from rest_framework.views import APIView
 from apps.projects.domain.services import (
     create_project,
     DuplicateProjectCodeError,
+    get_project_for_actor,
     InvalidProjectDateRangeError,
+    list_projects_for_actor,
+    ProjectNotFoundError,
     ProjectCreatePermissionDeniedError,
 )
 
@@ -29,6 +32,13 @@ def error_response(*, code: str, message: str, details: dict, status_code: int) 
 
 @method_decorator(csrf_protect, name="dispatch")
 class ProjectListCreateView(APIView):
+    def get(self, request):
+        projects = list_projects_for_actor(actor=request.user)
+        return Response(
+            {"projects": ProjectSerializer(projects, many=True).data},
+            status=status.HTTP_200_OK,
+        )
+
     def post(self, request):
         serializer = CreateProjectSerializer(data=request.data)
         if not serializer.is_valid():
@@ -73,4 +83,22 @@ class ProjectListCreateView(APIView):
         return Response(
             {"project": ProjectSerializer(project).data},
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ProjectDetailView(APIView):
+    def get(self, request, project_id):
+        try:
+            project = get_project_for_actor(actor=request.user, project_id=project_id)
+        except ProjectNotFoundError:
+            return error_response(
+                code="PROJECT_NOT_FOUND",
+                message="Project not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {"project": ProjectSerializer(project).data},
+            status=status.HTTP_200_OK,
         )

@@ -1,8 +1,21 @@
-﻿# US-011 - View Project  ## Metadata - Area: 3. Projects - GitHub labels: `user-story`, `mvp`, `area:projects` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-009 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** project member  
+# US-011 - View Project
+
+## Metadata
+
+- Area: 3. Projects
+- GitHub labels: `user-story`, `mvp`, `area:projects`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 2`
+- Depends on: `US-009`
+- Parallelization note: This slice can start once `US-009` is in place. It should land before project edit and delete because those stories need a real read surface.
+
+## User Story
+
+**As a** project member  
 **I want** to view projects I belong to  
 **So that** I can access project work.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am a project member  
 **When** I open the project  
@@ -10,44 +23,55 @@
 
 **Given** I am not a project member and not an Admin  
 **When** I attempt to view the project  
-**Then** the system denies access or hides the project.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies access or hides the project.
 
-### Database
-- [ ] Create/maintain project schema with UUID, owner, immutable code, task counter, dates, and soft delete.
-- [ ] Add unique/index constraints for project code and owner lookups.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement project endpoints with pagination and permission checks.
-- [ ] Enforce immutable project code on PATCH.
-- [ ] Validate project date ranges.
-- [ ] Soft-delete project, tasks, subtasks, memberships, dependencies visibility with confirmation flag.
-- [ ] Write project activity logs.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build project create/edit/detail/list UI.
-- [ ] Prevent code editing after creation in the UI.
-- [ ] Show destructive delete confirmation text exactly as specified.
+- [x] Add project read queries under the owning `projects` module for:
+  - active projects visible to the authenticated user
+  - a single active project by id when the authenticated user has access
+- [x] Implement `GET /api/projects` to return the current user's visible projects.
+- [x] Implement `GET /api/projects/{project_id}` to return project details for an accessible active project.
+- [x] Treat access as:
+  - Admin can view any active project
+  - active project members can view that project
+  - non-members and removed members cannot view the project
+- [x] Hide inaccessible or soft-deleted projects from normal reads.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test immutable code, date validation, and soft-delete behavior.
-- [ ] Integration test project CRUD and deleted-project exclusion from normal views.
+### Frontend Slice
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Replace the create-only shell workspace with a project-access workspace.
+- [x] Show a visible list of accessible projects after login.
+- [x] Allow opening a project from the list into a dedicated project detail route.
+- [x] Keep the create-project form in the workspace so `US-009` stays usable.
+- [x] Surface empty, loading, and unavailable states for the new read flow.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add backend integration coverage for listing only accessible projects for a normal member.
+- [x] Add backend integration coverage for Admin visibility across projects.
+- [x] Add backend integration coverage for successful project detail reads by an active member.
+- [x] Add backend integration coverage showing non-members and removed members cannot read a project.
+- [x] Add frontend integration coverage for loading the accessible project list after login.
+- [x] Add frontend integration coverage for opening a project detail route from the list.
+- [x] Add frontend integration coverage for an unavailable project detail route.
+
+## Dependencies And Notes
+
+- This slice intentionally stops at project read access. It does not implement:
+  - project edit mutations
+  - project code immutability enforcement on update
+  - project deletion
+  - project member management beyond honoring the existing membership rows
+- `US-010` should build on the update path introduced by `US-012`. Until a project update endpoint exists, immutability remains a project rule in the spec and model contract, but there is no meaningful PATCH surface to reject yet.
+- The frontend outcome for this story must be visible after login. A backend-only read endpoint is not sufficient for this slice.
+
+## Definition Of Done
+
+- Authenticated users can load a list of projects they are allowed to access.
+- Admins can see active projects even when they are not members.
+- Active project members can open a project detail route and view project details.
+- Non-members and removed members cannot access project details through normal reads.
+- The authenticated shell visibly changes from create-only to project-access navigation with working loading, empty, and unavailable states.

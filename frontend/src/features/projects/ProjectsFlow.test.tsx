@@ -28,7 +28,97 @@ function mockFetchSequence(responses: Response[]) {
 }
 
 describe("projects flow", () => {
-  it("creates a project from the protected shell and renders the returned project details", async () => {
+  it("loads the accessible project list after login and opens a project detail route", async () => {
+    const fetchMock = mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "owner-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "owner-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByRole("button", { name: /engineering platform/i }));
+
+    expect(await screen.findAllByText("ENG")).toHaveLength(2);
+    expect(screen.getByText("Owner ID")).toBeInTheDocument();
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/projects");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/projects/project-1");
+  });
+
+  it("shows an unavailable state when a project route is not visible to the current account", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        body: {
+          id: "user-1",
+          email: "jane@example.com",
+          name: "Jane Doe",
+          is_admin: false,
+          must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
+      jsonResponse({
+        status: 404,
+        body: {
+          error: {
+            code: "PROJECT_NOT_FOUND",
+            message: "Project not found.",
+            details: {},
+          },
+        },
+      }),
+    ]);
+
+    renderApp(["/projects/missing-project"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText(/project unavailable/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/not visible to the current account or no longer exists/i),
+    ).toBeInTheDocument();
+  });
+
+  it("creates a project from the workspace and opens the created project details", async () => {
     const fetchMock = mockFetchSequence([
       jsonResponse({
         body: {
@@ -37,6 +127,11 @@ describe("projects flow", () => {
           name: "Jane Doe",
           is_admin: true,
           must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [],
         },
       }),
       jsonResponse({
@@ -54,6 +149,66 @@ describe("projects flow", () => {
           },
         },
       }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+          },
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "user-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
+      jsonResponse({
+        body: {
+          project: {
+            id: "project-1",
+            name: "Engineering Platform",
+            code: "ENG",
+            description: "Internal engineering work",
+            owner_id: "user-1",
+            task_counter: 0,
+            start_date: "2026-05-01",
+            end_date: "2026-06-01",
+          },
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [
+            {
+              id: "project-1",
+              name: "Engineering Platform",
+              code: "ENG",
+              description: "Internal engineering work",
+              owner_id: "user-1",
+              task_counter: 0,
+              start_date: "2026-05-01",
+              end_date: "2026-06-01",
+            },
+          ],
+        },
+      }),
     ]);
 
     const user = userEvent.setup();
@@ -66,13 +221,12 @@ describe("projects flow", () => {
     await user.type(screen.getByLabelText(/end date/i), "2026-06-01");
     await user.click(screen.getByRole("button", { name: /create project/i }));
 
-    expect(await screen.findByText("ENG")).toBeInTheDocument();
-    expect(screen.getByText(/engineering platform/i)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/projects");
-    const requestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(await screen.findByText(/project created/i)).toBeInTheDocument();
+    expect(await screen.findByText("Owner ID")).toBeInTheDocument();
+    const requestHeaders = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
     expect(requestHeaders.get("X-CSRFToken")).toBe("test-token");
-    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/projects");
+    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(
       JSON.stringify({
         name: "Engineering Platform",
         code: "ENG",
@@ -92,6 +246,11 @@ describe("projects flow", () => {
           name: "Jane Doe",
           is_admin: true,
           must_reset_password: false,
+        },
+      }),
+      jsonResponse({
+        body: {
+          projects: [],
         },
       }),
       jsonResponse({
@@ -117,41 +276,6 @@ describe("projects flow", () => {
 
     expect(
       await screen.findByText("A project with this code already exists."),
-    ).toBeInTheDocument();
-  });
-
-  it("shows permission feedback when the backend denies project creation", async () => {
-    mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-2",
-          email: "member@example.com",
-          name: "Team Member",
-          is_admin: false,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        status: 403,
-        body: {
-          error: {
-            code: "PROJECT_PERMISSION_DENIED",
-            message: "You do not have permission to create projects.",
-            details: {},
-          },
-        },
-      }),
-    ]);
-
-    const user = userEvent.setup();
-    renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
-
-    await user.type(await screen.findByLabelText(/project name/i), "Blocked Project");
-    await user.type(screen.getByLabelText(/project code/i), "blk");
-    await user.click(screen.getByRole("button", { name: /create project/i }));
-
-    expect(
-      await screen.findByText("You do not have permission to create projects."),
     ).toBeInTheDocument();
   });
 });

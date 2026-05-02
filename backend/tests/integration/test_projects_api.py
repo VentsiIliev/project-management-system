@@ -1,5 +1,7 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
@@ -7,6 +9,11 @@ from apps.projects.models import Project
 
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def clear_project_rate_limit_cache():
+    cache.clear()
 
 
 def create_user(**overrides):
@@ -260,3 +267,174 @@ def test_team_members_cannot_create_projects():
         }
     }
     assert Project.all_objects.filter(code="BLK").exists() is False
+
+
+def test_project_list_only_returns_projects_visible_to_the_member():
+    admin_user = create_user(
+        email="projects-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="member.visible@example.com")
+    visible_project = create_project(
+        owner=admin_user,
+        code="VIS",
+        name="Visible Project",
+    )
+    hidden_project = create_project(
+        owner=admin_user,
+        code="HID",
+        name="Hidden Project",
+    )
+    create_membership(
+        project=visible_project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get("/api/projects")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "projects": [
+            {
+                "id": str(visible_project.id),
+                "name": "Visible Project",
+                "code": "VIS",
+                "description": None,
+                "owner_id": str(admin_user.id),
+                "task_counter": 0,
+                "start_date": None,
+                "end_date": None,
+            }
+        ]
+    }
+    assert str(hidden_project.id) not in str(response.json())
+
+
+def test_admin_project_list_returns_all_active_projects():
+    admin_user = create_user(
+        email="all-projects-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    first_project = create_project(owner=admin_user, code="ALP", name="Alpha Project")
+    second_project = create_project(owner=admin_user, code="BET", name="Beta Project")
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.get("/api/projects")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "projects": [
+            {
+                "id": str(first_project.id),
+                "name": "Alpha Project",
+                "code": "ALP",
+                "description": None,
+                "owner_id": str(admin_user.id),
+                "task_counter": 0,
+                "start_date": None,
+                "end_date": None,
+            },
+            {
+                "id": str(second_project.id),
+                "name": "Beta Project",
+                "code": "BET",
+                "description": None,
+                "owner_id": str(admin_user.id),
+                "task_counter": 0,
+                "start_date": None,
+                "end_date": None,
+            },
+        ]
+    }
+
+
+def test_active_project_member_can_view_project_details():
+    admin_user = create_user(
+        email="detail-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="detail-member@example.com")
+    project = create_project(owner=admin_user, code="DET", name="Detail Project")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/projects/{project.id}")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "project": {
+            "id": str(project.id),
+            "name": "Detail Project",
+            "code": "DET",
+            "description": None,
+            "owner_id": str(admin_user.id),
+            "task_counter": 0,
+            "start_date": None,
+            "end_date": None,
+        }
+    }
+
+
+def test_non_member_cannot_view_project_details():
+    admin_user = create_user(
+        email="non-member-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    outsider_user = create_user(email="outsider@example.com")
+    project = create_project(owner=admin_user, code="DEN", name="Denied Project")
+    client = APIClient()
+    client.force_login(outsider_user)
+
+    response = client.get(f"/api/projects/{project.id}")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_NOT_FOUND",
+            "message": "Project not found.",
+            "details": {},
+        }
+    }
+
+
+def test_removed_member_cannot_view_project_details():
+    admin_user = create_user(
+        email="removed-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    removed_user = create_user(email="removed@example.com")
+    project = create_project(owner=admin_user, code="REM", name="Removed Project")
+    membership = create_membership(
+        project=project,
+        user=removed_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    membership.deleted_at = timezone.now()
+    membership.save(update_fields=["deleted_at"])
+    client = APIClient()
+    client.force_login(removed_user)
+
+    response = client.get(f"/api/projects/{project.id}")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_NOT_FOUND",
+            "message": "Project not found.",
+            "details": {},
+        }
+    }

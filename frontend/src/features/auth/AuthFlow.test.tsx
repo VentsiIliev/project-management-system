@@ -52,6 +52,11 @@ describe("auth flow", () => {
           requires_password_reset: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
     ]);
 
     const user = userEvent.setup();
@@ -61,11 +66,11 @@ describe("auth flow", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
+      await screen.findByRole("heading", { name: /open and manage live project spaces/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/jane@example.com/i)).toBeInTheDocument();
     expect(screen.queryByText(/session expired after inactivity/i)).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const loginRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
     expect(loginRequestHeaders.get("X-CSRFToken")).toBe("test-token");
   });
@@ -92,6 +97,8 @@ describe("auth flow", () => {
     expect(
       screen.queryByText(/session expired after inactivity/i),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/create account/i)).not.toBeInTheDocument();
   });
 
   it("redirects to the reset-required shell when login returns a forced reset state", async () => {
@@ -172,6 +179,44 @@ describe("auth flow", () => {
     expect(screen.getByRole("heading", { name: /user login/i })).toBeInTheDocument();
   });
 
+  it("shows the rate-limit error returned by the backend", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+      jsonResponse({
+        status: 429,
+        body: {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many authentication attempts. Try again later.",
+            details: {
+              retry_after: 60,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/login"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(await screen.findByLabelText(/email/i), "jane@example.com");
+    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(
+      await screen.findByText("Too many authentication attempts. Try again later."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /user login/i })).toBeInTheDocument();
+  });
+
   it("boots directly into the authenticated shell when a session already exists", async () => {
     mockFetchSequence([
       jsonResponse({
@@ -183,12 +228,17 @@ describe("auth flow", () => {
           must_reset_password: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
     ]);
 
     renderApp(["/"]);
 
     expect(
-      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
+      await screen.findByRole("heading", { name: /open and manage live project spaces/i }),
     ).toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
   });
@@ -257,6 +307,11 @@ describe("auth flow", () => {
           must_reset_password: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
       new Response(null, { status: 204 }),
     ]);
 
@@ -271,9 +326,9 @@ describe("auth flow", () => {
     expect(
       await screen.findByRole("heading", { name: /user login/i }),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/logout");
-    const logoutRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/auth/logout");
+    const logoutRequestHeaders = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
     expect(logoutRequestHeaders.get("X-CSRFToken")).toBe("test-token");
   });
 
@@ -336,6 +391,11 @@ describe("auth flow", () => {
           must_reset_password: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
     ]);
 
     const user = userEvent.setup();
@@ -351,14 +411,14 @@ describe("auth flow", () => {
     await user.click(screen.getByRole("button", { name: /set new password/i }));
 
     expect(
-      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
+      await screen.findByRole("heading", { name: /open and manage live project spaces/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {
         name: /your temporary password must be replaced/i,
       }),
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/force-reset-password");
     const resetRequestHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
     expect(resetRequestHeaders.get("X-CSRFToken")).toBe("test-token");
@@ -463,6 +523,11 @@ describe("auth flow", () => {
           must_reset_password: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
     ]);
 
     const user = userEvent.setup();
@@ -477,8 +542,8 @@ describe("auth flow", () => {
     );
     await user.click(screen.getByRole("button", { name: /set new password/i }));
 
-    await screen.findByRole("heading", { name: /create and seed project spaces/i });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await screen.findByRole("heading", { name: /open and manage live project spaces/i });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     await waitFor(() => {
       expect(
         screen.queryByRole("heading", {
@@ -499,17 +564,45 @@ describe("auth flow", () => {
           must_reset_password: false,
         },
       }),
+      jsonResponse({
+        body: {
+          projects: [],
+        },
+      }),
     ]);
 
     renderApp(["/reset-password"]);
 
     expect(
-      await screen.findByRole("heading", { name: /create and seed project spaces/i }),
+      await screen.findByRole("heading", { name: /open and manage live project spaces/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {
         name: /your temporary password must be replaced/i,
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("routes unauthenticated registration-style paths back to the login flow", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+    ]);
+
+    renderApp(["/register"]);
+
+    expect(
+      await screen.findByRole("heading", { name: /user login/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/create account/i)).not.toBeInTheDocument();
   });
 });
