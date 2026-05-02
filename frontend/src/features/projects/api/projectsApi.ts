@@ -1,7 +1,9 @@
 import { apiRequest } from "../../../api/client";
 import {
+  type AddProjectMemberRequest,
   type CreateProjectRequest,
   type DeleteProjectRequest,
+  type ProjectMember,
   type Project,
   type ProjectDetail,
   type UpdateProjectRequest,
@@ -44,4 +46,20 @@ export async function deleteProject(projectId: string, payload: DeleteProjectReq
     body: JSON.stringify(payload),
     method: "DELETE",
   });
+}
+
+export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  const response = await apiRequest<{ members: ProjectMember[] }>(`/projects/${projectId}/members`);
+  return response.members;
+}
+
+export async function addProjectMember(
+  projectId: string,
+  payload: AddProjectMemberRequest,
+): Promise<ProjectMember> {
+  const response = await apiRequest<{ member: ProjectMember }>(`/projects/${projectId}/members`, {
+    body: JSON.stringify(payload),
+    method: "POST",
+  });
+  return response.member;
 }

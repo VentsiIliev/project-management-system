@@ -12,6 +12,17 @@ export type Project = {
 export type ProjectDetail = Project & {
   can_edit: boolean;
   can_delete: boolean;
+  can_manage_members: boolean;
+};
+
+export type ProjectMemberRole = "PROJECT_MANAGER" | "TEAM_MEMBER";
+
+export type ProjectMember = {
+  user_id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  role: ProjectMemberRole;
 };
 
 export type CreateProjectRequest = {
@@ -32,4 +43,9 @@ export type UpdateProjectRequest = {
 
 export type DeleteProjectRequest = {
   confirm_project_delete: boolean;
+};
+
+export type AddProjectMemberRequest = {
+  user_id: string;
+  role: ProjectMemberRole;
 };
