@@ -388,6 +388,56 @@ textarea {
   gap: var(--space-4);
 }
 
+.member-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.member-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+}
+
+.member-list__identity,
+.member-list__meta {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.member-list__identity span {
+  color: var(--color-text-secondary);
+}
+
+.member-role-pill,
+.member-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.member-role-pill {
+  background: var(--color-bg-ink);
+  color: var(--color-text-inverse);
+}
+
+.member-status-pill {
+  background: var(--color-warning-surface);
+  color: var(--color-text-primary);
+}
+
 .project-list {
   display: grid;
   gap: var(--space-3);
@@ -485,6 +535,10 @@ textarea {
   min-width: 0;
 }
 
+.project-members-panel {
+  min-width: 0;
+}
+
 .project-delete-panel {
   min-width: 0;
 }
@@ -515,6 +569,10 @@ textarea {
   }
 
   .project-edit-panel {
+    grid-column: 1 / -1;
+  }
+
+  .project-members-panel {
     grid-column: 1 / -1;
   }
 

@@ -43,6 +43,7 @@ class ProjectSerializer(serializers.Serializer):
 class ProjectDetailSerializer(ProjectSerializer):
     can_edit = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
+    can_manage_members = serializers.SerializerMethodField()
 
     def get_can_edit(self, obj):
         user = self.context["user"]
@@ -53,4 +54,7 @@ class ProjectDetailSerializer(ProjectSerializer):
         ).exists()
 
     def get_can_delete(self, obj):
+        return self.get_can_edit(obj)
+
+    def get_can_manage_members(self, obj):
         return self.get_can_edit(obj)

@@ -1,8 +1,21 @@
-﻿# US-014 - Add Project Member  ## Metadata - Area: 4. Project Memberships and Roles - GitHub labels: `user-story`, `mvp`, `area:memberships` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-009, US-005 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-014 - Add Project Member
+
+## Metadata
+
+- Area: 4. Project Memberships and Roles
+- GitHub labels: `user-story`, `mvp`, `area:memberships`
+- Suggested status: `Owner Review`
+- Suggested wave: `Wave 2`
+- Depends on: `US-009`, `US-005`
+- Reviewable slice: membership list/read surface plus add-member contract and UI
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to add users to projects  
 **So that** they can collaborate on project work.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to manage members  
 **When** I add an active user with a valid project role  
@@ -10,43 +23,55 @@
 
 **Given** the role is not `PROJECT_MANAGER` or `TEAM_MEMBER`  
 **When** I submit the request  
-**Then** the system rejects the request.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects the request.
 
-### Database
-- [ ] Create/maintain `project_memberships` table with role enum, unique project-user pair, timestamps, and soft delete.
-- [ ] Add indexes for permission lookup by project and user.
+## Delivery Notes
 
-### Backend/API
-- [ ] Implement membership CRUD endpoints with Project Manager/Admin permissions.
-- [ ] Ignore soft-deleted memberships in all authorization checks.
-- [ ] Preserve task assignments when a member is removed and label removed users in read models.
-- [ ] Emit member activity logs.
+- Use the spec membership contract:
+  - `GET /api/projects/{project_id}/members`
+  - `POST /api/projects/{project_id}/members`
+- Add-member request shape:
+  - `user_id`
+  - `role`
+- The current slice includes a visible members panel on project detail routes because the story is frontend-visible.
+- `US-015` role change and `US-016` removal stay out of this slice even though the data model overlaps.
+- Because memberships have a unique `(project, user)` constraint, re-adding a previously removed member reactivates the soft-deleted membership with the requested role.
 
-### Frontend/UI
-- [ ] Build member management UI with role selector and remove confirmation.
-- [ ] Hide member actions for users without permission.
-- [ ] Display removed/inactive assignment labels where relevant.
+## Tasks
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test membership role constraints and soft-deleted membership access loss.
-- [ ] Integration test add, role change, removal, and access revocation.
+### Backend
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Add project-member list and create endpoints under the membership contract.
+- [x] Allow all visible project users to read members.
+- [x] Allow only Admins and active `PROJECT_MANAGER` memberships to add members.
+- [x] Reject invalid roles.
+- [x] Reject nonexistent, soft-deleted, or inactive target users.
+- [x] Reactivate a previously soft-deleted membership instead of creating a duplicate row.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add a members panel to the project workspace.
+- [x] Show the current active member list for visible projects.
+- [x] Add a member form with `user_id` and role selection.
+- [x] Hide the add-member form for users without manage-member permission.
+- [x] Show structured validation and permission errors.
+
+### Tests
+
+- [x] Backend integration coverage for member list visibility, admin add, project-manager add, invalid role rejection, target-user rejection, and soft-deleted membership reactivation.
+- [x] Frontend flow coverage for visible member list, add-member success, and manage-member form hiding for read-only users.
+
+## Definition Of Done
+
+- Project members can be listed through the spec endpoint.
+- Active users can be added with valid project roles by authorized actors.
+- Invalid roles and invalid target users are rejected with structured errors.
+- The project workspace exposes a visible members panel and add-member flow.
+- Backend and frontend tests cover the acceptance criteria for this slice.
+
+## Out Of Scope
+
+- Changing an existing active member role
+- Removing a member
+- Removed-member task labeling
+- Activity-log emission for membership changes

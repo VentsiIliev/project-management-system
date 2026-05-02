@@ -385,6 +385,7 @@ def test_active_project_member_can_view_project_details():
             "end_date": None,
             "can_edit": False,
             "can_delete": False,
+            "can_manage_members": False,
         }
     }
 
@@ -478,6 +479,7 @@ def test_admin_can_edit_project_details():
             "end_date": "2026-06-03",
             "can_edit": True,
             "can_delete": True,
+            "can_manage_members": True,
         }
     }
     assert project.name == "Updated Project Name"
@@ -514,6 +516,7 @@ def test_project_manager_can_edit_project_details():
     assert response.json()["project"]["name"] == "Managed Project Updated"
     assert response.json()["project"]["can_edit"] is True
     assert response.json()["project"]["can_delete"] is True
+    assert response.json()["project"]["can_manage_members"] is True
     assert project.name == "Managed Project Updated"
 
 
@@ -782,3 +785,267 @@ def test_deleted_projects_are_hidden_from_members_after_delete():
     assert list_response.status_code == 200
     assert list_response.json() == {"projects": []}
     assert detail_response.status_code == 404
+
+
+def test_visible_project_members_can_list_active_members():
+    admin_user = create_user(
+        email="project-members-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="project-members-member@example.com")
+    project = create_project(owner=admin_user, code="MBR", name="Member Listing")
+    create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/projects/{project.id}/members")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "members": [
+            {
+                "user_id": str(admin_user.id),
+                "email": admin_user.email,
+                "name": admin_user.name,
+                "is_active": True,
+                "role": "PROJECT_MANAGER",
+            },
+            {
+                "user_id": str(member_user.id),
+                "email": member_user.email,
+                "name": member_user.name,
+                "is_active": True,
+                "role": "TEAM_MEMBER",
+            },
+        ]
+    }
+
+
+def test_admin_can_add_project_member():
+    admin_user = create_user(
+        email="project-add-member-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="project-add-target@example.com")
+    project = create_project(owner=admin_user, code="ADD", name="Add Member Project")
+    create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(target_user.id),
+            "role": "TEAM_MEMBER",
+        },
+        format="json",
+    )
+
+    membership = ProjectMembership.objects.get(project=project, user=target_user)
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "member": {
+            "user_id": str(target_user.id),
+            "email": target_user.email,
+            "name": target_user.name,
+            "is_active": True,
+            "role": "TEAM_MEMBER",
+        }
+    }
+    assert membership.role == ProjectMembershipRole.TEAM_MEMBER
+
+
+def test_project_manager_can_add_project_member():
+    admin_user = create_user(
+        email="project-add-pm-seed@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    project_manager = create_user(email="project-add-pm@example.com")
+    target_user = create_user(email="project-add-pm-target@example.com")
+    project = create_project(owner=admin_user, code="PMA", name="Project Manager Add")
+    create_membership(
+        project=project,
+        user=project_manager,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(project_manager)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(target_user.id),
+            "role": "PROJECT_MANAGER",
+        },
+        format="json",
+    )
+
+    membership = ProjectMembership.objects.get(project=project, user=target_user)
+
+    assert response.status_code == 201
+    assert response.json()["member"]["role"] == "PROJECT_MANAGER"
+    assert membership.role == ProjectMembershipRole.PROJECT_MANAGER
+
+
+def test_team_member_cannot_add_project_member():
+    admin_user = create_user(
+        email="project-add-denied-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    team_member = create_user(email="project-add-denied-member@example.com")
+    target_user = create_user(email="project-add-denied-target@example.com")
+    project = create_project(owner=admin_user, code="NOM", name="Denied Add")
+    create_membership(
+        project=project,
+        user=team_member,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+    client.force_login(team_member)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(target_user.id),
+            "role": "TEAM_MEMBER",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_PERMISSION_DENIED",
+            "message": "You do not have permission to manage project members.",
+            "details": {},
+        }
+    }
+    assert ProjectMembership.objects.filter(project=project, user=target_user).exists() is False
+
+
+def test_add_project_member_rejects_invalid_role():
+    admin_user = create_user(
+        email="project-add-role-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="project-add-role-target@example.com")
+    project = create_project(owner=admin_user, code="ROL", name="Role Validation")
+    create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(target_user.id),
+            "role": "OBSERVER",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert "role" in response.json()["error"]["details"]
+
+
+def test_add_project_member_rejects_inactive_users():
+    admin_user = create_user(
+        email="project-add-inactive-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    inactive_user = create_user(
+        email="project-add-inactive-target@example.com",
+        is_active=False,
+    )
+    project = create_project(owner=admin_user, code="INA", name="Inactive User Validation")
+    create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(inactive_user.id),
+            "role": "TEAM_MEMBER",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "user_id": ["The target user must be active."],
+            },
+        }
+    }
+
+
+def test_add_project_member_reactivates_a_soft_deleted_membership():
+    admin_user = create_user(
+        email="project-add-reactivate-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="project-add-reactivate-target@example.com")
+    project = create_project(owner=admin_user, code="REA", name="Reactivate Member")
+    create_membership(
+        project=project,
+        user=admin_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    membership = create_membership(
+        project=project,
+        user=target_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    membership.deleted_at = timezone.now()
+    membership.save(update_fields=["deleted_at"])
+    client = APIClient()
+    client.force_login(admin_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/members",
+        {
+            "user_id": str(target_user.id),
+            "role": "PROJECT_MANAGER",
+        },
+        format="json",
+    )
+
+    membership.refresh_from_db()
+
+    assert response.status_code == 201
+    assert response.json()["member"]["role"] == "PROJECT_MANAGER"
+    assert membership.deleted_at is None
+    assert membership.role == ProjectMembershipRole.PROJECT_MANAGER

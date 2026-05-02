@@ -11,10 +11,16 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { AppShellPage } from "../../auth/pages/AppShellPage";
 import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
+import { useAddProjectMemberMutation } from "../hooks/useAddProjectMemberMutation";
 import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
+import { useProjectMembersQuery } from "../hooks/useProjectMembersQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import { useUpdateProjectMutation } from "../hooks/useUpdateProjectMutation";
+import {
+  addProjectMemberSchema,
+  type AddProjectMemberFormValues,
+} from "../schemas/addProjectMemberSchema";
 import {
   createProjectSchema,
   type CreateProjectFormValues,
@@ -48,10 +54,13 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const createProjectMutation = useCreateProjectMutation();
   const projectsQuery = useProjectsQuery();
   const projectQuery = useProjectQuery(projectId);
+  const projectMembersQuery = useProjectMembersQuery(projectQuery.data ? projectId : null);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
+  const addProjectMemberMutation = useAddProjectMemberMutation(projectId);
   const deleteProjectMutation = useDeleteProjectMutation(projectId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
+  const [showAddMemberSuccess, setShowAddMemberSuccess] = useState(false);
   const [deleteConfirmationChecked, setDeleteConfirmationChecked] = useState(false);
   const [deleteConfirmationError, setDeleteConfirmationError] = useState<string | null>(null);
   const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
@@ -83,6 +92,18 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     },
     resolver: zodResolver(updateProjectSchema),
   });
+  const {
+    formState: { errors: memberErrors },
+    handleSubmit: handleMemberSubmit,
+    register: registerMember,
+    reset: resetMemberForm,
+  } = useForm<AddProjectMemberFormValues>({
+    defaultValues: {
+      user_id: "",
+      role: "TEAM_MEMBER",
+    },
+    resolver: zodResolver(addProjectMemberSchema),
+  });
 
   const projectError = isApiError(createProjectMutation.error)
     ? createProjectMutation.error
@@ -95,6 +116,9 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     : null;
   const deleteProjectError = isApiError(deleteProjectMutation.error)
     ? deleteProjectMutation.error
+    : null;
+  const addProjectMemberError = isApiError(addProjectMemberMutation.error)
+    ? addProjectMemberMutation.error
     : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
@@ -143,6 +167,15 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     deleteProjectError.code !== "PROJECT_PERMISSION_DENIED"
       ? deleteProjectError.message
       : null;
+  const serverMemberUserIdError = getDetailMessages(addProjectMemberError?.details.user_id)[0];
+  const serverMemberRoleError = getDetailMessages(addProjectMemberError?.details.role)[0];
+  const serverMemberFormError =
+    addProjectMemberError &&
+    !serverMemberUserIdError &&
+    !serverMemberRoleError &&
+    addProjectMemberError.code !== "PROJECT_PERMISSION_DENIED"
+      ? addProjectMemberError.message
+      : null;
 
   useEffect(() => {
     if (!projectQuery.data) {
@@ -169,6 +202,15 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     setShowDeleteSuccess(false);
     deleteProjectMutation.reset();
   }, [projectId]);
+
+  useEffect(() => {
+    setShowAddMemberSuccess(false);
+    addProjectMemberMutation.reset();
+    resetMemberForm({
+      user_id: "",
+      role: "TEAM_MEMBER",
+    });
+  }, [projectId, resetMemberForm]);
 
   return (
     <AppShellPage user={user}>
@@ -280,6 +322,118 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                 Project code is locked after creation and cannot be edited.
               </div>
             </div>
+          ) : null}
+        </Panel>
+
+        <Panel className="project-members-panel">
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Project members</h2>
+            <p className="panel-heading__body">
+              Review the active member list and add collaborators with a project role from the same workspace.
+            </p>
+          </div>
+          {!projectId ? (
+            <StatusMessage title="Project members are unavailable">
+              Select a project detail route before managing members.
+            </StatusMessage>
+          ) : null}
+          {projectId && projectMembersQuery.isPending ? (
+            <StatusMessage title="Loading members">
+              The current project member list is loading from the backend.
+            </StatusMessage>
+          ) : null}
+          {projectId && isApiError(projectMembersQuery.error) ? (
+            <StatusMessage tone="error" title="Member list unavailable">
+              {projectMembersQuery.error.message}
+            </StatusMessage>
+          ) : null}
+          {projectId &&
+          !projectMembersQuery.isPending &&
+          !projectMembersQuery.error &&
+          (projectMembersQuery.data?.length ?? 0) === 0 ? (
+            <StatusMessage title="No active members">
+              Add the first member to expand the project workspace beyond the owner.
+            </StatusMessage>
+          ) : null}
+          {projectMembersQuery.data?.length ? (
+            <div className="member-list" role="list" aria-label="Project members">
+              {projectMembersQuery.data.map((member) => (
+                <div className="member-list__item" key={member.user_id} role="listitem">
+                  <div className="member-list__identity">
+                    <strong>{member.name}</strong>
+                    <span>{member.email}</span>
+                  </div>
+                  <div className="member-list__meta">
+                    <span className="member-role-pill">{member.role.replace("_", " ")}</span>
+                    {!member.is_active ? <span className="member-status-pill">Inactive user</span> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {projectQuery.data && !projectQuery.data.can_manage_members ? (
+            <StatusMessage tone="warning" title="Member changes are restricted">
+              Only Admins and active Project Managers can add members to this project.
+            </StatusMessage>
+          ) : null}
+          {projectQuery.data?.can_manage_members ? (
+            <form
+              className="form-stack"
+              onSubmit={handleMemberSubmit((values) => {
+                setShowAddMemberSuccess(false);
+                addProjectMemberMutation.reset();
+                addProjectMemberMutation.mutate(values, {
+                  onSuccess: () => {
+                    setShowAddMemberSuccess(true);
+                    resetMemberForm({
+                      user_id: "",
+                      role: values.role,
+                    });
+                  },
+                });
+              })}
+            >
+              <Field
+                error={memberErrors.user_id?.message ?? serverMemberUserIdError}
+                label="User ID"
+                type="text"
+                {...registerMember("user_id")}
+              />
+              <label className="field" htmlFor="member-role">
+                <span className="field__label">Project role</span>
+                <select
+                  className="field__input"
+                  id="member-role"
+                  {...registerMember("role")}
+                >
+                  <option value="TEAM_MEMBER">TEAM_MEMBER</option>
+                  <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
+                </select>
+                {memberErrors.role?.message ?? serverMemberRoleError ? (
+                  <span className="field__error" role="alert">
+                    {memberErrors.role?.message ?? serverMemberRoleError}
+                  </span>
+                ) : null}
+              </label>
+              {addProjectMemberError?.code === "PROJECT_PERMISSION_DENIED" ? (
+                <StatusMessage tone="error" title="Permission denied">
+                  {addProjectMemberError.message}
+                </StatusMessage>
+              ) : null}
+              {serverMemberFormError ? (
+                <StatusMessage tone="error" title="Member add failed">
+                  {serverMemberFormError}
+                </StatusMessage>
+              ) : null}
+              {showAddMemberSuccess ? (
+                <StatusMessage title="Member added">
+                  The member list was updated for the current project.
+                </StatusMessage>
+              ) : null}
+              <Button disabled={addProjectMemberMutation.isPending} type="submit">
+                {addProjectMemberMutation.isPending ? "Adding member..." : "Add member"}
+              </Button>
+            </form>
           ) : null}
         </Panel>
 

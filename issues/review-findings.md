@@ -36,6 +36,8 @@
 
 2. `US-013 Delete Project With Confirmation` depends on task, subtask, and activity-log preservation rules in the spec, but those modules are not implemented in the current branch stack yet. The working slice for `US-013` is: implement project and membership soft-delete now, keep the spec confirmation flag, hide deleted projects from normal reads, and defer deeper cascades to the future task and activity-log stories.
 
+3. `US-014 Add Project Member` uses `user_id` in the spec request shape, but the current frontend stack has no user-search or user-list surface yet. The working slice keeps the spec contract and exposes a visible members panel with a direct `user_id` entry field instead of inventing a broader user directory story.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

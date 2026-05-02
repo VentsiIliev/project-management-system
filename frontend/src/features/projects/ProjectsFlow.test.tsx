@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,60 +18,117 @@ function jsonResponse({ body, status = 200 }: MockResponseOptions = {}) {
   });
 }
 
-function mockFetchSequence(responses: Response[]) {
-  const fetchMock = vi.fn();
-  responses.forEach((response) => {
-    fetchMock.mockResolvedValueOnce(response);
-  });
+function stubFetch(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+    handler(String(input), init),
+  );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
 
+function sessionResponse(overrides?: Partial<Record<string, unknown>>) {
+  return {
+    id: "user-1",
+    email: "jane@example.com",
+    name: "Jane Doe",
+    is_admin: true,
+    must_reset_password: false,
+    ...overrides,
+  };
+}
+
+function projectDetailResponse(overrides?: Partial<Record<string, unknown>>) {
+  return {
+    id: "project-1",
+    name: "Engineering Platform",
+    code: "ENG",
+    description: "Internal engineering work",
+    owner_id: "user-1",
+    task_counter: 0,
+    start_date: "2026-05-01",
+    end_date: "2026-06-01",
+    can_edit: true,
+    can_delete: true,
+    can_manage_members: true,
+    ...overrides,
+  };
+}
+
+function projectListResponse(overrides?: Partial<Record<string, unknown>>) {
+  return [
+    {
+      id: "project-1",
+      name: "Engineering Platform",
+      code: "ENG",
+      description: "Internal engineering work",
+      owner_id: "user-1",
+      task_counter: 0,
+      start_date: "2026-05-01",
+      end_date: "2026-06-01",
+      ...overrides,
+    },
+  ];
+}
+
+function memberListResponse(overrides?: Array<Record<string, unknown>>) {
+  return (
+    overrides ?? [
+      {
+        user_id: "user-1",
+        email: "jane@example.com",
+        name: "Jane Doe",
+        is_active: true,
+        role: "PROJECT_MANAGER",
+      },
+    ]
+  );
+}
+
 describe("projects flow", () => {
   it("loads the accessible project list after login and opens a project detail route", async () => {
-    const fetchMock = mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: false,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "owner-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "owner-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: false,
-            can_delete: false,
+    const fetchMock = stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse({ is_admin: false }) });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({
+          body: {
+            projects: projectListResponse({ owner_id: "owner-1" }),
           },
-        },
-      }),
-    ]);
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({
+          body: {
+            project: projectDetailResponse({
+              owner_id: "owner-1",
+              can_edit: false,
+              can_delete: false,
+              can_manage_members: false,
+            }),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({
+          body: {
+            members: memberListResponse([
+              {
+                user_id: "owner-1",
+                email: "owner@example.com",
+                name: "Owner One",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+            ]),
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
@@ -79,38 +136,33 @@ describe("projects flow", () => {
     await user.click(await screen.findByRole("button", { name: /engineering platform/i }));
 
     expect(await screen.findAllByText("ENG")).toHaveLength(2);
-    expect(screen.getByText("Owner ID")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/projects");
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/projects/project-1");
+    expect(await screen.findByText("Owner One")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/projects/project-1/members", expect.anything());
   });
 
   it("shows an unavailable state when a project route is not visible to the current account", async () => {
-    mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: false,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [],
-        },
-      }),
-      jsonResponse({
-        status: 404,
-        body: {
-          error: {
-            code: "PROJECT_NOT_FOUND",
-            message: "Project not found.",
-            details: {},
+    stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse({ is_admin: false }) });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: [] } });
+      }
+      if (url === "/api/projects/missing-project") {
+        return jsonResponse({
+          status: 404,
+          body: {
+            error: {
+              code: "PROJECT_NOT_FOUND",
+              message: "Project not found.",
+              details: {},
+            },
           },
-        },
-      }),
-    ]);
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     renderApp(["/projects/missing-project"], { cookie: "csrftoken=test-token; path=/" });
 
@@ -121,103 +173,30 @@ describe("projects flow", () => {
   });
 
   it("creates a project from the workspace and opens the created project details", async () => {
-    const fetchMock = mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: true,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [],
-        },
-      }),
-      jsonResponse({
-        status: 201,
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects" && !init?.method) {
+        return jsonResponse({ body: { projects: [] } });
+      }
+      if (url === "/api/projects" && init?.method === "POST") {
+        return jsonResponse({
+          status: 201,
+          body: {
+            project: projectDetailResponse(),
           },
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
-          },
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "user-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
-          },
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "user-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-    ]);
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
@@ -230,11 +209,15 @@ describe("projects flow", () => {
     await user.click(screen.getByRole("button", { name: /create project/i }));
 
     expect(await screen.findByText(/project created/i)).toBeInTheDocument();
-    expect(await screen.findByText("Owner ID")).toBeInTheDocument();
-    const requestHeaders = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
+    expect(await screen.findByText("Jane Doe")).toBeInTheDocument();
+
+    const createCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects" && requestInit?.method === "POST",
+    );
+    const requestHeaders = new Headers(createCall?.[1]?.headers);
     expect(requestHeaders.get("X-CSRFToken")).toBe("test-token");
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/projects");
-    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(
+    expect(createCall?.[1]?.body).toBe(
       JSON.stringify({
         name: "Engineering Platform",
         code: "ENG",
@@ -246,34 +229,30 @@ describe("projects flow", () => {
   });
 
   it("shows server-side validation feedback when the backend rejects a duplicate code", async () => {
-    mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: true,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [],
-        },
-      }),
-      jsonResponse({
-        status: 400,
-        body: {
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Invalid input",
-            details: {
-              code: ["A project with this code already exists."],
+    stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects" && !init?.method) {
+        return jsonResponse({ body: { projects: [] } });
+      }
+      if (url === "/api/projects" && init?.method === "POST") {
+        return jsonResponse({
+          status: 400,
+          body: {
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Invalid input",
+              details: {
+                code: ["A project with this code already exists."],
+              },
             },
           },
-        },
-      }),
-    ]);
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/"], { cookie: "csrftoken=test-token; path=/" });
@@ -288,65 +267,34 @@ describe("projects flow", () => {
   });
 
   it("edits a project from the detail workspace without exposing a mutable code field", async () => {
-    const fetchMock = mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: true,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "user-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1" && init?.method === "PATCH") {
+        return jsonResponse({
+          body: {
+            project: projectDetailResponse({
+              name: "Engineering Platform Updated",
+              description: "Updated project description",
+              start_date: "2026-05-04",
+              end_date: "2026-06-10",
+            }),
           },
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform Updated",
-            code: "ENG",
-            description: "Updated project description",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-04",
-            end_date: "2026-06-10",
-            can_edit: true,
-            can_delete: true,
-          },
-        },
-      }),
-    ]);
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
@@ -361,105 +309,146 @@ describe("projects flow", () => {
 
     expect(await screen.findByText(/project updated/i)).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("ENG")[0]).toHaveAttribute("readonly");
-    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/projects/project-1");
-    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("PATCH");
+    const patchCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1" && requestInit?.method === "PATCH",
+    );
+    expect(patchCall).toBeTruthy();
   });
 
-  it("shows a read-only edit state for project members without edit permission", async () => {
-    mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-2",
-          email: "member@example.com",
-          name: "Team Member",
-          is_admin: false,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "owner-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "owner-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: false,
-            can_delete: false,
+  it("shows a read-only member-management state for project members without permission", async () => {
+    stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({
+          body: sessionResponse({
+            id: "user-2",
+            email: "member@example.com",
+            name: "Team Member",
+            is_admin: false,
+          }),
+        });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({
+          body: {
+            projects: projectListResponse({ owner_id: "owner-1" }),
           },
-        },
-      }),
-    ]);
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({
+          body: {
+            project: projectDetailResponse({
+              owner_id: "owner-1",
+              can_edit: false,
+              can_delete: false,
+              can_manage_members: false,
+            }),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({
+          body: {
+            members: [
+              {
+                user_id: "owner-1",
+                email: "owner@example.com",
+                name: "Owner One",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+              {
+                user_id: "user-2",
+                email: "member@example.com",
+                name: "Team Member",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ],
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
 
-    expect(await screen.findByText(/read-only access/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/member changes are restricted/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add member/i })).not.toBeInTheDocument();
+  });
+
+  it("adds a project member from the workspace and updates the visible member list", async () => {
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/members" && init?.method === "POST") {
+        return jsonResponse({
+          status: 201,
+          body: {
+            member: {
+              user_id: "user-9",
+              email: "new.member@example.com",
+              name: "New Member",
+              is_active: true,
+              role: "TEAM_MEMBER",
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.type(await screen.findByLabelText(/^user id$/i), "d2fe2a4c-6910-4c2b-bcdf-4d1cd03a9999");
+    await user.selectOptions(screen.getByLabelText(/project role/i), "TEAM_MEMBER");
+    await user.click(screen.getByRole("button", { name: /add member/i }));
+
+    expect(await screen.findByText(/member added/i)).toBeInTheDocument();
+    expect(await screen.findByText("New Member")).toBeInTheDocument();
+    const addCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1/members" && requestInit?.method === "POST",
+    );
+    expect(addCall?.[1]?.body).toBe(
+      JSON.stringify({
+        user_id: "d2fe2a4c-6910-4c2b-bcdf-4d1cd03a9999",
+        role: "TEAM_MEMBER",
+      }),
+    );
   });
 
   it("requires explicit confirmation before deleting a project", async () => {
-    mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: true,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "user-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
-          },
-        },
-      }),
-    ]);
+    stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
@@ -472,50 +461,34 @@ describe("projects flow", () => {
   });
 
   it("deletes a project after confirmation and returns to the workspace list", async () => {
-    const fetchMock = mockFetchSequence([
-      jsonResponse({
-        body: {
-          id: "user-1",
-          email: "jane@example.com",
-          name: "Jane Doe",
-          is_admin: true,
-          must_reset_password: false,
-        },
-      }),
-      jsonResponse({
-        body: {
-          projects: [
-            {
-              id: "project-1",
-              name: "Engineering Platform",
-              code: "ENG",
-              description: "Internal engineering work",
-              owner_id: "user-1",
-              task_counter: 0,
-              start_date: "2026-05-01",
-              end_date: "2026-06-01",
-            },
-          ],
-        },
-      }),
-      jsonResponse({
-        body: {
-          project: {
-            id: "project-1",
-            name: "Engineering Platform",
-            code: "ENG",
-            description: "Internal engineering work",
-            owner_id: "user-1",
-            task_counter: 0,
-            start_date: "2026-05-01",
-            end_date: "2026-06-01",
-            can_edit: true,
-            can_delete: true,
+    let deleteSeen = false;
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({
+          body: {
+            projects:
+              deleteSeen && !init?.method
+                ? []
+                : projectListResponse(),
           },
-        },
-      }),
-      new Response(null, { status: 204 }),
-    ]);
+        });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1" && init?.method === "DELETE") {
+        deleteSeen = true;
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
 
     const user = userEvent.setup();
     renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
@@ -527,12 +500,14 @@ describe("projects flow", () => {
     );
     await user.click(screen.getByRole("button", { name: /delete project/i }));
 
-    expect(await screen.findByText(/no accessible projects yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /engineering platform/i })).not.toBeInTheDocument();
-    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/projects/project-1");
-    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("DELETE");
-    expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(
-      JSON.stringify({ confirm_project_delete: true }),
+    await waitFor(() =>
+      expect(screen.getByText(/no accessible projects yet/i)).toBeInTheDocument(),
     );
+    expect(screen.queryByRole("button", { name: /engineering platform/i })).not.toBeInTheDocument();
+    const deleteCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1" && requestInit?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.body).toBe(JSON.stringify({ confirm_project_delete: true }));
   });
 });
