@@ -1,48 +1,63 @@
-﻿# US-015 - Change Project Member Role  ## Metadata - Area: 4. Project Memberships and Roles - GitHub labels: `user-story`, `mvp`, `area:memberships` - Suggested status: `Backlog` - Suggested wave: `Wave 2` - Depends on: US-014 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-015 - Change Project Member Role
+
+## Metadata
+
+- Area: 4. Project Memberships and Roles
+- GitHub labels: `user-story`, `mvp`, `area:memberships`
+- Suggested status: `Owner Review`
+- Suggested wave: `Wave 2`
+- Depends on: `US-014`
+- Reviewable slice: grouped with `US-016` because both extend the same membership contract and members panel
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to change a member's project role  
 **So that** responsibilities can be updated.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to manage members  
 **When** I update a member role  
-**Then** the new role applies to project permissions.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the new role applies to project permissions.
 
-### Database
-- [ ] Create/maintain `project_memberships` table with role enum, unique project-user pair, timestamps, and soft delete.
-- [ ] Add indexes for permission lookup by project and user.
+## Delivery Notes
 
-### Backend/API
-- [ ] Implement membership CRUD endpoints with Project Manager/Admin permissions.
-- [ ] Ignore soft-deleted memberships in all authorization checks.
-- [ ] Preserve task assignments when a member is removed and label removed users in read models.
-- [ ] Emit member activity logs.
+- Use the spec contract:
+  - `PATCH /api/projects/{project_id}/members/{user_id}`
+- Accept the same role values already used by `US-014`:
+  - `PROJECT_MANAGER`
+  - `TEAM_MEMBER`
+- If the currently signed-in user downgrades their own membership from `PROJECT_MANAGER` to `TEAM_MEMBER`, the workspace must immediately lose member-management controls after the update succeeds.
 
-### Frontend/UI
-- [ ] Build member management UI with role selector and remove confirmation.
-- [ ] Hide member actions for users without permission.
-- [ ] Display removed/inactive assignment labels where relevant.
+## Tasks
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test membership role constraints and soft-deleted membership access loss.
-- [ ] Integration test add, role change, removal, and access revocation.
+### Backend
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Add the membership role-update endpoint.
+- [x] Allow only Admins and active `PROJECT_MANAGER` memberships to change member roles.
+- [x] Reject invalid roles.
+- [x] Return not found when the target active membership does not exist.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Extend the members panel with inline role editing.
+- [x] Refresh or update capability state when the current user changes their own role.
+- [x] Show structured validation and permission errors for role updates.
+
+### Tests
+
+- [x] Backend integration coverage for admin update, project-manager update, team-member denial, and missing-membership handling.
+- [x] Frontend flow coverage for successful role change and self-downgrade capability loss.
+
+## Definition Of Done
+
+- Active project-member roles can be updated through the spec endpoint.
+- The new role changes backend permission behavior immediately.
+- The members panel exposes a visible role-editing flow for authorized users.
+
+## Out Of Scope
+
+- Removing members
+- Removed-member task labeling
+- Activity-log emission for membership changes

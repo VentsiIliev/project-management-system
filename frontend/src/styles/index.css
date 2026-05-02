@@ -410,6 +410,10 @@ textarea {
   gap: var(--space-1);
 }
 
+.member-list__meta {
+  justify-items: end;
+}
+
 .member-list__identity span {
   color: var(--color-text-secondary);
 }
@@ -428,6 +432,22 @@ textarea {
   text-transform: uppercase;
 }
 
+.member-role-editor {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.member-role-editor__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.member-role-editor__select {
+  min-width: 14rem;
+}
+
 .member-role-pill {
   background: var(--color-bg-ink);
   color: var(--color-text-inverse);
@@ -436,6 +456,17 @@ textarea {
 .member-status-pill {
   background: var(--color-warning-surface);
   color: var(--color-text-primary);
+}
+
+.member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.member-actions__button {
+  min-height: 2.75rem;
 }
 
 .project-list {

@@ -8,6 +8,10 @@ class AddProjectMemberSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=ProjectMembershipRole.choices)
 
 
+class UpdateProjectMemberSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=ProjectMembershipRole.choices)
+
+
 class ProjectMemberSerializer(serializers.Serializer):
     user_id = serializers.UUIDField(format="hex_verbose", source="user.id")
     email = serializers.EmailField(source="user.email")
