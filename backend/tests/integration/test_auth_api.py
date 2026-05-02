@@ -215,6 +215,31 @@ def test_logout_requires_authentication():
     }
 
 
+def test_logout_requires_a_valid_csrf_token():
+    user = create_user(email="csrf-logout@example.com", must_reset_password=False)
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post("/api/auth/logout")
+
+    assert response.status_code == 403
+
+
+def test_logout_succeeds_with_a_valid_csrf_token():
+    user = create_user(email="csrf-logout-success@example.com", must_reset_password=False)
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+    csrf_response = client.get("/api/auth/me")
+    csrf_token = csrf_response.cookies["csrftoken"].value
+
+    response = client.post(
+        "/api/auth/logout",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+
+    assert response.status_code == 204
+
+
 def test_force_reset_password_rejects_users_who_do_not_require_reset():
     user = create_user(email="no-reset-needed@example.com", must_reset_password=False)
     client = APIClient()
@@ -238,6 +263,37 @@ def test_force_reset_password_rejects_users_who_do_not_require_reset():
     }
     assert user.must_reset_password is False
     assert user.check_password("valid-password") is True
+
+
+def test_force_reset_password_requires_a_valid_csrf_token():
+    user = create_user(email="csrf-reset@example.com", must_reset_password=True)
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post(
+        "/api/auth/force-reset-password",
+        {"new_password": "better-password-123"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+
+
+def test_force_reset_password_succeeds_with_a_valid_csrf_token():
+    user = create_user(email="csrf-reset-success@example.com", must_reset_password=True)
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+    csrf_response = client.get("/api/auth/me")
+    csrf_token = csrf_response.cookies["csrftoken"].value
+
+    response = client.post(
+        "/api/auth/force-reset-password",
+        {"new_password": "better-password-123"},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+
+    assert response.status_code == 200
 
 
 def test_current_user_returns_authenticated_profile_for_reset_required_user():
@@ -286,6 +342,53 @@ def test_login_succeeds_with_valid_csrf_token():
 
     assert response.status_code == 200
     assert response.json()["user"]["email"] == user.email
+
+
+def test_admin_create_user_requires_a_valid_csrf_token():
+    admin_user = create_user(
+        email="csrf-admin-create@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(admin_user)
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Denied User",
+            "email": "denied.csrf@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+
+
+def test_admin_create_user_succeeds_with_a_valid_csrf_token():
+    admin_user = create_user(
+        email="csrf-admin-create-success@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(admin_user)
+    csrf_response = client.get("/api/auth/me")
+    csrf_token = csrf_response.cookies["csrftoken"].value
+
+    response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Allowed User",
+            "email": "allowed.csrf@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+
+    assert response.status_code == 201
 
 
 @pytest.mark.parametrize(

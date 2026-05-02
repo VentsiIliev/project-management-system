@@ -81,6 +81,51 @@ def test_admin_can_create_a_project():
     assert creator_membership.role == ProjectMembershipRole.PROJECT_MANAGER
 
 
+def test_project_create_requires_a_valid_csrf_token():
+    admin_user = create_user(
+        email="csrf-project-create@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(admin_user)
+
+    response = client.post(
+        "/api/projects",
+        {
+            "name": "Blocked By Csrf",
+            "code": "CSRF",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+
+
+def test_project_create_succeeds_with_a_valid_csrf_token():
+    admin_user = create_user(
+        email="csrf-project-create-success@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(admin_user)
+    csrf_response = client.get("/api/auth/me")
+    csrf_token = csrf_response.cookies["csrftoken"].value
+
+    response = client.post(
+        "/api/projects",
+        {
+            "name": "Allowed By Csrf",
+            "code": "safe",
+        },
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+
+    assert response.status_code == 201
+
+
 def test_project_manager_can_create_a_project():
     admin_user = create_user(
         email="admin.seed@example.com",

@@ -1,8 +1,21 @@
-﻿# US-057 - CSRF Protection  ## Metadata - Area: 17. Authorization and Security - GitHub labels: `user-story`, `mvp`, `area:security` - Suggested status: `Backlog` - Suggested wave: `Wave 1` - Depends on: US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** system  
+# US-057 - CSRF Protection
+
+## Metadata
+
+- Area: 17. Authorization and Security
+- GitHub labels: `user-story`, `mvp`, `area:security`
+- Suggested status: `Ready`
+- Suggested wave: `Wave 1`
+- Depends on: `US-001`
+- Parallelization note: This slice builds on the existing session-auth foundation and can run independently of rate limiting.
+
+## User Story
+
+**As a** system  
 **I want** unsafe authenticated requests to require CSRF protection  
 **So that** session-based authentication is protected.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** a user submits POST, PATCH, PUT, or DELETE  
 **When** the CSRF token is missing or invalid  
@@ -10,46 +23,47 @@
 
 **Given** the CSRF token is valid  
 **When** the unsafe request is submitted  
-**Then** normal authentication and authorization checks continue.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** normal authentication and authorization checks continue.
 
-### Database
-- [ ] Confirm user fields support auth state: `is_active`, `deleted_at`, `must_reset_password`, `last_login_at`.
-- [ ] Add indexes/constraints required for email uniqueness and active-user lookup.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement/validate session endpoint behavior and generic auth errors.
-- [ ] Enforce active, non-deleted user checks before creating sessions.
-- [ ] Add service-level handling for `must_reset_password` and allowed endpoints.
-- [ ] Emit application logs for security-relevant auth events.
+### Backend Slice
 
-### Frontend/UI
-- [ ] Build guarded route behavior for authenticated, unauthenticated, and reset-required users.
-- [ ] Display validation, generic credential, expired-session, and rate-limit states.
-- [ ] Attach CSRF tokens and credentials on unsafe requests.
+- [x] Keep CSRF enforcement on all unsafe session-auth endpoints already using Django session authentication.
+- [x] Add explicit integration coverage for unsafe authenticated endpoints beyond login:
+  - logout
+  - forced password reset
+  - admin user-management mutation
+  - project creation mutation
+- [x] Complete production cookie settings to match the spec:
+  - `SESSION_COOKIE_SECURE = True`
+  - `SESSION_COOKIE_HTTPONLY = True`
+  - `SESSION_COOKIE_SAMESITE = "Lax"`
+  - `CSRF_COOKIE_SECURE = True`
+  - `CSRF_COOKIE_HTTPONLY = False`
+  - `CSRF_COOKIE_SAMESITE = "Lax"`
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test valid/invalid credentials, inactive users, deleted users, and reset-required users.
-- [ ] Integration test full browser/API auth flow and session expiry behavior.
+### Frontend Slice
 
-### DevOps/Config
-- [ ] Configure secure cookie settings and rate-limit middleware for production/staging.
+- [x] Keep the shared API client as the single CSRF attachment boundary for unsafe requests.
+- [x] Add or keep focused UI-level coverage proving unsafe auth and project mutations send `X-CSRFToken` and credentials.
+- [x] No new visible UI surface is required in this slice.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+### Test Slice
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+- [x] Add backend integration tests proving unsafe requests are rejected without a valid CSRF token.
+- [x] Add backend integration tests proving the same requests succeed when the token is present and the underlying auth or permission check passes.
+- [x] Keep frontend tests proving the shared client sends the CSRF token on login, logout, forced reset, and project creation.
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Dependencies And Notes
+
+- This story should not change the existing auth UX flows.
+- This story should not introduce custom CSRF middleware when Django session authentication already provides the correct enforcement path.
+- Reuse the shared frontend API client rather than attaching tokens ad hoc in feature code.
+
+## Definition Of Done
+
+- Unsafe session-authenticated requests are rejected without a valid CSRF token.
+- The same requests proceed normally when the CSRF token is valid.
+- Production cookie settings match the session and CSRF requirements from the spec.
+- Frontend unsafe requests continue to send the CSRF token and credentials through the shared API client.
