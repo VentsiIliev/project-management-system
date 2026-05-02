@@ -1,28 +1,31 @@
+import { type PropsWithChildren } from "react";
+
 import { Button } from "../../../components/Button";
 import { Panel } from "../../../components/Panel";
 import { useLogoutMutation } from "../hooks/useLogoutMutation";
 import { type SessionUser } from "../types";
 
-type AppShellPageProps = {
+type AppShellPageProps = PropsWithChildren<{
   user: SessionUser;
-};
+}>;
 
-export function AppShellPage({ user }: AppShellPageProps) {
+export function AppShellPage({ children, user }: AppShellPageProps) {
   const logoutMutation = useLogoutMutation();
 
   return (
     <main className="shell">
       <div className="shell__hero">
         <div>
-          <p className="eyebrow">Authenticated shell</p>
-          <h1 className="shell__title">Session established</h1>
+          <p className="eyebrow">Project workspace</p>
+          <h1 className="shell__title">Create and seed project spaces</h1>
           <p className="shell__summary">
-            The auth foundation is active. Broader product routes stay out of this slice until later stories land.
+            The authenticated shell now hosts the first project workflow. Use it to create project records, validate
+            date rules, and confirm the backend permission path from the signed-in account.
           </p>
         </div>
         <div className="status-pill">
           <span className="status-pill__label">Access</span>
-          <strong>{user.is_admin ? "Admin" : "Standard user"}</strong>
+          <strong>{user.is_admin ? "Admin" : "Authenticated user"}</strong>
         </div>
       </div>
 
@@ -44,11 +47,11 @@ export function AppShellPage({ user }: AppShellPageProps) {
 
         <Panel>
           <p className="card-kicker">Current scope</p>
-          <h2 className="card-title">Auth foundation only</h2>
+          <h2 className="card-title">Project creation slice</h2>
           <ul className="bullet-list">
-            <li>Login form wired to the shared API client</li>
-            <li>Session bootstrap query gates the shell</li>
-            <li>Reset-required users are redirected out of the main shell</li>
+            <li>Project records can be created through the protected API</li>
+            <li>Duplicate codes and invalid date ranges return structured errors</li>
+            <li>Team-member level accounts are denied by the backend permission rule</li>
           </ul>
           <Button
             disabled={logoutMutation.isPending}
@@ -60,6 +63,8 @@ export function AppShellPage({ user }: AppShellPageProps) {
           </Button>
         </Panel>
       </section>
+
+      {children ? <section className="shell__workspace">{children}</section> : null}
     </main>
   );
 }

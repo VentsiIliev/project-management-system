@@ -58,12 +58,14 @@ body {
 
 body,
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
 button,
-input {
+input,
+textarea {
   color: inherit;
 }
 
@@ -206,6 +208,11 @@ input {
   transform: translateY(-1px);
 }
 
+.field__input--textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+}
+
 .field__error {
   font-size: 0.9rem;
 }
@@ -295,6 +302,12 @@ input {
   gap: var(--space-5);
 }
 
+.shell__workspace,
+.workspace-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
 .status-pill {
   display: inline-flex;
   flex-direction: column;
@@ -339,6 +352,34 @@ input {
   padding-left: 1.2rem;
 }
 
+.split-fields {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.project-summary {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.project-summary__code {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  background: var(--color-bg-ink);
+  color: var(--color-text-inverse);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.project-summary__description {
+  margin: 0;
+}
+
 @media (min-width: 860px) {
   .screen__content {
     grid-template-columns: minmax(0, 1.3fr) minmax(22rem, 0.9fr);
@@ -349,6 +390,14 @@ input {
   }
 
   .shell__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  }
+
+  .split-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
