@@ -172,6 +172,44 @@ describe("auth flow", () => {
     expect(screen.getByRole("heading", { name: /user login/i })).toBeInTheDocument();
   });
 
+  it("shows the rate-limit error returned by the backend", async () => {
+    mockFetchSequence([
+      jsonResponse({
+        status: 401,
+        body: {
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Authentication required.",
+            details: {},
+          },
+        },
+      }),
+      jsonResponse({
+        status: 429,
+        body: {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many authentication attempts. Try again later.",
+            details: {
+              retry_after: 60,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const user = userEvent.setup();
+    renderApp(["/login"], { cookie: "csrftoken=test-token; path=/" });
+    await user.type(await screen.findByLabelText(/email/i), "jane@example.com");
+    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(
+      await screen.findByText("Too many authentication attempts. Try again later."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /user login/i })).toBeInTheDocument();
+  });
+
   it("boots directly into the authenticated shell when a session already exists", async () => {
     mockFetchSequence([
       jsonResponse({

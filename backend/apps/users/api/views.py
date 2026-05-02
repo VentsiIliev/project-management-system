@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from apps.users.domain.services import (
     admin_reset_user_password,
+    AuthenticationRateLimitedError,
     create_user_account,
     DuplicateEmailError,
     InvalidCredentialsError,
@@ -67,6 +68,15 @@ class LoginView(APIView):
                 email=serializer.validated_data["email"],
                 password=serializer.validated_data["password"],
             )
+        except AuthenticationRateLimitedError as exc:
+            response = error_response(
+                code="RATE_LIMITED",
+                message="Too many authentication attempts. Try again later.",
+                details={"retry_after": exc.retry_after},
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+            response["Retry-After"] = str(exc.retry_after)
+            return response
         except InvalidCredentialsError:
             return error_response(
                 code="INVALID_CREDENTIALS",
@@ -132,6 +142,15 @@ class ForceResetPasswordView(APIView):
                 user=session_user,
                 new_password=serializer.validated_data["new_password"],
             )
+        except AuthenticationRateLimitedError as exc:
+            response = error_response(
+                code="RATE_LIMITED",
+                message="Too many authentication attempts. Try again later.",
+                details={"retry_after": exc.retry_after},
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+            response["Retry-After"] = str(exc.retry_after)
+            return response
         except PasswordValidationFailedError as exc:
             return error_response(
                 code="VALIDATION_ERROR",

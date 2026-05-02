@@ -33,6 +33,10 @@ export function LoginPage() {
     isApiError(loginMutation.error) && loginMutation.error.code === "INVALID_CREDENTIALS"
       ? loginMutation.error.message
       : null;
+  const rateLimitedError =
+    isApiError(loginMutation.error) && loginMutation.error.code === "RATE_LIMITED"
+      ? loginMutation.error.message
+      : null;
 
   return (
     <AuthFrame
@@ -73,6 +77,11 @@ export function LoginPage() {
           {loginError ? (
             <StatusMessage tone="error" title="Sign-in failed">
               {loginError}
+            </StatusMessage>
+          ) : null}
+          {rateLimitedError ? (
+            <StatusMessage tone="error" title="Too many attempts">
+              {rateLimitedError}
             </StatusMessage>
           ) : null}
           <Button disabled={loginMutation.isPending} fullWidth type="submit">
