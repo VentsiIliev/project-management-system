@@ -1,8 +1,21 @@
-﻿# US-071 - Enforce Overdue Definition  ## Metadata - Area: 22. Key Invariant Coverage - GitHub labels: `user-story`, `mvp`, `area:invariants` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-020, US-026 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** user  
+# US-071 - Enforce Overdue Definition
+
+## Metadata
+
+- Area: 22. Key Invariant Coverage
+- GitHub labels: `user-story`, `mvp`, `area:invariants`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-019`, `US-026`
+- Parallelization note: Implement with task detail and status change. Overdue is a read-model rule derived from deadline plus final status.
+
+## User Story
+
+**As a** user  
 **I want** overdue tasks to be calculated consistently  
 **So that** urgency is clear.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** a task deadline is before today  
 **And** the task status is not final  
@@ -15,45 +28,31 @@
 
 **Given** a task is in a final status  
 **When** the task is viewed  
-**Then** the task is not overdue even if the deadline is in the past.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the task is not overdue even if the deadline is in the past.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+- Overdue is computed, not stored.
+- This belongs in the task read serializer and list/detail read models, not in a migration or status mutation side table.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Backend Read Rule
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [ ] Compute `is_overdue` from `deadline < today` and `status.is_final == false`.
+- [ ] Return the computed value in task list and task detail responses.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend Read Rule
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Render overdue state consistently in the project task list and task detail view.
+- [ ] Do not mark final-status tasks overdue even if their deadline is in the past.
+
+### Tests
+
+- [ ] Add backend integration coverage for overdue, non-overdue, and final-status non-overdue cases.
+- [ ] Add frontend coverage for overdue rendering.
+
+## Definition Of Done
+
+- Overdue state is derived consistently in backend read models.
+- Task list and task detail both expose and render the same overdue rule.

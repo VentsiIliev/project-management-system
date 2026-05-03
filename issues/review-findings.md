@@ -46,6 +46,12 @@
 
 7. `US-018 Atomic Task Numbering` and `US-069 Enforce Task-Project Ownership` were both carrying copy-pasted implementation breakdowns unrelated to their actual acceptance criteria. The working backlog is corrected to treat them as a narrow task-persistence invariant slice over the existing task-create path, with concurrency and ownership regression coverage instead of unrelated future task features.
 
+8. `US-019`, `US-020`, `US-021`, `US-026`, `US-070`, and `US-071` were all carrying broad placeholder breakdowns that hid the real next reviewable slice. The working backlog is corrected to treat them as one task-detail and task-update foundation slice over the existing task backend and project workspace frontend.
+
+9. `US-054 View Workflow Metadata` is already effectively delivered by the `US-028` + `US-053` slice. It should be synced as implemented or owner-review rather than scheduled as a future Wave 5 feature.
+
+10. `US-060 Handle Loading, Empty, and Error States` is not a coherent standalone feature story in its current local form. It should be treated as a cross-slice frontend definition-of-done rule, starting with the next task-detail and task-edit workspace work.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

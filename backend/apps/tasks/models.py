@@ -127,6 +127,12 @@ class Task(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_tasks",
     )
+    collaborators = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        through="TaskCollaborator",
+        related_name="collaborating_tasks",
+        blank=True,
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.RESTRICT,
@@ -172,3 +178,35 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return self.task_key
+
+
+class TaskCollaborator(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="task_collaborators",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.RESTRICT,
+        related_name="task_collaborations",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "task_collaborators"
+        ordering = ["task_id", "user_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task", "user"],
+                name="unique_task_collaborator_per_user",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["task"]),
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.task_id}:{self.user_id}"

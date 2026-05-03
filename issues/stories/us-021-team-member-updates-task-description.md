@@ -1,8 +1,21 @@
-﻿# US-021 - Team Member Updates Task Description  ## Metadata - Area: 5. Task Management - GitHub labels: `user-story`, `mvp`, `area:tasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017, US-014 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** Team Member  
+# US-021 - Team Member Updates Task Description
+
+## Metadata
+
+- Area: 5. Task Management
+- GitHub labels: `user-story`, `mvp`, `area:tasks`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-019`, `US-020`, `US-014`
+- Parallelization note: Keep inside the same task patch slice as `US-020`; this is a field-level permission rule on the same endpoint.
+
+## User Story
+
+**As a** Team Member  
 **I want** to update task descriptions  
 **So that** I can add execution details.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am a Team Member on the project  
 **When** I update only the task description with the current version  
@@ -10,43 +23,35 @@
 
 **Given** I am a Team Member  
 **When** I attempt to update planning fields  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/maintain `project_memberships` table with role enum, unique project-user pair, timestamps, and soft delete.
-- [ ] Add indexes for permission lookup by project and user.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement membership CRUD endpoints with Project Manager/Admin permissions.
-- [ ] Ignore soft-deleted memberships in all authorization checks.
-- [ ] Preserve task assignments when a member is removed and label removed users in read models.
-- [ ] Emit member activity logs.
+- This is not a separate API. It is the role-restricted branch of `PATCH /api/tasks/{task_id}`.
+- The frontend should expose a description-only edit state for Team Members instead of pretending the task is fully read-only.
 
-### Frontend/UI
-- [ ] Build member management UI with role selector and remove confirmation.
-- [ ] Hide member actions for users without permission.
-- [ ] Display removed/inactive assignment labels where relevant.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test membership role constraints and soft-deleted membership access loss.
-- [ ] Integration test add, role change, removal, and access revocation.
+### Backend Permission Rule
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [ ] Allow active Team Members to patch `description` only.
+- [ ] Reject Team Member attempts to change title, priority, dates, assignee, collaborators, or other planning fields.
+- [ ] Keep optimistic-lock checks for Team Member description edits the same as manager edits.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend Behavior
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Show a description edit affordance for Team Members.
+- [ ] Keep planning controls hidden or disabled for Team Members.
+- [ ] Surface permission-denied responses clearly if the API is called directly with forbidden fields.
+
+### Tests
+
+- [ ] Add backend integration coverage for Team Member description-only success.
+- [ ] Add backend integration coverage for Team Member planning-field rejection.
+- [ ] Add frontend coverage for Team Member description editing and missing planning controls.
+
+## Definition Of Done
+
+- Team Members can update only task descriptions.
+- Team Members cannot update planning fields through normal UI or direct API calls.
+- The same patch endpoint cleanly supports both manager and Team Member update paths.

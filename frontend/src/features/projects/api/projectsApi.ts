@@ -1,6 +1,7 @@
 import { apiRequest } from "../../../api/client";
 import {
   type AddProjectMemberRequest,
+  type ChangeTaskStatusRequest,
   type CreateTaskRequest,
   type CreateProjectRequest,
   type DeleteProjectRequest,
@@ -8,6 +9,7 @@ import {
   type Project,
   type ProjectDetail,
   type Task,
+  type UpdateTaskRequest,
   type UpdateProjectMemberRequest,
   type UpdateProjectRequest,
   type WorkflowMetadata,
@@ -99,6 +101,30 @@ export async function createProjectTask(
   payload: CreateTaskRequest,
 ): Promise<Task> {
   const response = await apiRequest<{ task: Task }>(`/projects/${projectId}/tasks`, {
+    body: JSON.stringify(payload),
+    method: "POST",
+  });
+  return response.task;
+}
+
+export async function getTask(taskId: string): Promise<Task> {
+  const response = await apiRequest<{ task: Task }>(`/tasks/${taskId}`);
+  return response.task;
+}
+
+export async function updateTask(taskId: string, payload: UpdateTaskRequest): Promise<Task> {
+  const response = await apiRequest<{ task: Task }>(`/tasks/${taskId}`, {
+    body: JSON.stringify(payload),
+    method: "PATCH",
+  });
+  return response.task;
+}
+
+export async function changeTaskStatus(
+  taskId: string,
+  payload: ChangeTaskStatusRequest,
+): Promise<Task> {
+  const response = await apiRequest<{ task: Task }>(`/tasks/${taskId}/status`, {
     body: JSON.stringify(payload),
     method: "POST",
   });

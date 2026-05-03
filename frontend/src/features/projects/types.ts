@@ -58,15 +58,21 @@ export type TaskAssignee = {
 export type Task = {
   id: string;
   task_key: string;
+  project_id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority | null;
   primary_assignee: TaskAssignee | null;
+  collaborators: TaskAssignee[];
+  is_blocked: boolean;
+  is_overdue: boolean;
   start_date: string | null;
   deadline: string | null;
   version: number;
   created_at: string;
+  subtasks: Task[];
+  dependencies: Task[];
 };
 
 export type CreateProjectRequest = {
@@ -105,6 +111,23 @@ export type CreateTaskRequest = {
   start_date?: string | null;
   deadline?: string | null;
   primary_assignee_id?: string | null;
+  collaborator_ids?: string[];
+};
+
+export type UpdateTaskRequest = {
+  title?: string;
+  description?: string | null;
+  priority_id?: string | null;
+  start_date?: string | null;
+  deadline?: string | null;
+  primary_assignee_id?: string | null;
+  collaborator_ids?: string[];
+  version: number;
+};
+
+export type ChangeTaskStatusRequest = {
+  to_status_id: string;
+  version: number;
 };
 
 export type WorkflowMetadata = {

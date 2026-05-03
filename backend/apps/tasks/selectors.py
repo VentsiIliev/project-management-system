@@ -2,11 +2,16 @@ from apps.projects.selectors import visible_projects_for_user
 from apps.tasks.models import Task, TaskPriority, TaskStatusTransition, TaskWorkflowStatus
 
 
-def visible_tasks_for_user(*, user, project_id):
-    return Task.objects.filter(
-        project_id=project_id,
+def visible_tasks_for_user(*, user, project_id=None):
+    queryset = Task.objects.filter(
         project__in=visible_projects_for_user(user=user),
-    ).select_related("primary_assignee", "priority", "status")
+    )
+    if project_id is not None:
+        queryset = queryset.filter(project_id=project_id)
+
+    return queryset.select_related("primary_assignee", "priority", "status").prefetch_related(
+        "collaborators"
+    )
 
 
 def list_task_workflow_statuses():

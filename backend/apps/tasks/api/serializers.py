@@ -10,6 +10,48 @@ class CreateTaskSerializer(serializers.Serializer):
     start_date = serializers.DateField(required=False, allow_null=True)
     deadline = serializers.DateField(required=False, allow_null=True)
     primary_assignee_id = serializers.UUIDField(required=False, allow_null=True)
+    collaborator_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+    )
+
+
+class UpdateTaskSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    priority_id = serializers.UUIDField(required=False, allow_null=True)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    deadline = serializers.DateField(required=False, allow_null=True)
+    primary_assignee_id = serializers.UUIDField(required=False, allow_null=True)
+    collaborator_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+    )
+    version = serializers.IntegerField(min_value=1)
+
+    def validate(self, attrs):
+        mutable_fields = {
+            "title",
+            "description",
+            "priority_id",
+            "start_date",
+            "deadline",
+            "primary_assignee_id",
+            "collaborator_ids",
+        }
+        if not any(field in attrs for field in mutable_fields):
+            raise serializers.ValidationError(
+                {"non_field_errors": ["At least one task field must be updated."]}
+            )
+
+        return attrs
+
+
+class ChangeTaskStatusSerializer(serializers.Serializer):
+    to_status_id = serializers.UUIDField()
+    version = serializers.IntegerField(min_value=1)
 
 
 class TaskStatusSerializer(serializers.Serializer):
@@ -45,15 +87,21 @@ class TaskAssigneeSerializer(serializers.Serializer):
 class TaskSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     task_key = serializers.CharField()
+    project_id = serializers.UUIDField(format="hex_verbose")
     title = serializers.CharField()
     description = serializers.CharField(allow_null=True)
     status = serializers.SerializerMethodField()
     priority = serializers.SerializerMethodField()
     primary_assignee = serializers.SerializerMethodField()
+    collaborators = serializers.SerializerMethodField()
+    is_blocked = serializers.SerializerMethodField()
+    is_overdue = serializers.SerializerMethodField()
     start_date = serializers.DateField(allow_null=True)
     deadline = serializers.DateField(allow_null=True)
     version = serializers.IntegerField()
     created_at = serializers.DateTimeField()
+    subtasks = serializers.SerializerMethodField()
+    dependencies = serializers.SerializerMethodField()
 
     def get_status(self, obj: Task):
         status = obj.status
@@ -94,3 +142,26 @@ class TaskSerializer(serializers.Serializer):
             }
         ).data
 
+    def get_collaborators(self, obj: Task):
+        collaborators = sorted(obj.collaborators.all(), key=lambda user: (user.name, str(user.id)))
+        return TaskAssigneeSerializer(
+            [{"id": user.id, "name": user.name} for user in collaborators],
+            many=True,
+        ).data
+
+    def get_is_blocked(self, obj: Task):
+        return False
+
+    def get_is_overdue(self, obj: Task):
+        if obj.deadline is None or obj.status.is_final:
+            return False
+
+        from django.utils import timezone
+
+        return obj.deadline < timezone.localdate()
+
+    def get_subtasks(self, obj: Task):
+        return []
+
+    def get_dependencies(self, obj: Task):
+        return []
