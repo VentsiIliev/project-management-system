@@ -26,7 +26,28 @@ export type ProjectMember = {
 };
 
 export type TaskStatus = {
+  id: string;
   name: string;
+  sort_order: number;
+  is_final: boolean;
+  is_active: boolean;
+  color: string | null;
+};
+
+export type TaskPriority = {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  color: string | null;
+};
+
+export type TaskStatusTransition = {
+  id: string;
+  name: string | null;
+  is_active: boolean;
+  from_status_id: string;
+  to_status_id: string;
 };
 
 export type TaskAssignee = {
@@ -40,6 +61,7 @@ export type Task = {
   title: string;
   description: string | null;
   status: TaskStatus;
+  priority: TaskPriority | null;
   primary_assignee: TaskAssignee | null;
   start_date: string | null;
   deadline: string | null;
@@ -79,7 +101,14 @@ export type UpdateProjectMemberRequest = {
 export type CreateTaskRequest = {
   title: string;
   description?: string;
+  priority_id?: string | null;
   start_date?: string | null;
   deadline?: string | null;
   primary_assignee_id?: string | null;
+};
+
+export type WorkflowMetadata = {
+  statuses: TaskStatus[];
+  transitions: TaskStatusTransition[];
+  priorities: TaskPriority[];
 };
