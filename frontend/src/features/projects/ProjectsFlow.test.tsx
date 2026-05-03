@@ -120,6 +120,7 @@ function taskListResponse(overrides?: Array<Record<string, unknown>>) {
       {
         id: "task-1",
         task_key: "ENG-1",
+        project_id: "project-1",
         title: "Initial task",
         description: "Track the first delivery item.",
         status: {
@@ -141,10 +142,15 @@ function taskListResponse(overrides?: Array<Record<string, unknown>>) {
           id: "user-1",
           name: "Jane Doe",
         },
+        collaborators: [],
+        is_blocked: false,
+        is_overdue: false,
         start_date: "2026-05-01",
         deadline: "2026-05-05",
         version: 1,
         created_at: "2026-05-01T10:00:00Z",
+        subtasks: [],
+        dependencies: [],
       },
     ]
   );
@@ -1004,5 +1010,234 @@ describe("projects flow", () => {
     expect(screen.queryByRole("button", { name: /create task/i })).not.toBeInTheDocument();
     expect(screen.getByText("Visible task")).toBeInTheDocument();
     expect(screen.getByText("URGENT (inactive)")).toBeInTheDocument();
+  });
+
+  it("loads task detail when a task is selected from the project workspace", async () => {
+    stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({
+          body: {
+            members: memberListResponse([
+              {
+                user_id: "user-1",
+                email: "jane@example.com",
+                name: "Jane Doe",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+              {
+                user_id: "user-2",
+                email: "collaborator@example.com",
+                name: "Collaborator One",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ]),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
+      if (url === "/api/tasks/task-1") {
+        return jsonResponse({
+          body: {
+            task: {
+              ...taskListResponse()[0],
+              collaborators: [{ id: "user-2", name: "Collaborator One" }],
+              is_overdue: true,
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+
+    expect(await screen.findByText(/task detail/i)).toBeInTheDocument();
+    expect(await screen.findAllByText("Collaborator One")).toHaveLength(2);
+    expect(await screen.findAllByText("Overdue")).toHaveLength(2);
+  });
+
+  it("edits task fields and changes task status from the project workspace", async () => {
+    let currentTask = {
+      ...taskListResponse()[0],
+      collaborators: [{ id: "user-2", name: "Collaborator One" }],
+    };
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({
+          body: {
+            members: memberListResponse([
+              {
+                user_id: "user-1",
+                email: "jane@example.com",
+                name: "Jane Doe",
+                is_active: true,
+                role: "PROJECT_MANAGER",
+              },
+              {
+                user_id: "user-2",
+                email: "collaborator@example.com",
+                name: "Collaborator One",
+                is_active: true,
+                role: "TEAM_MEMBER",
+              },
+            ]),
+          },
+        });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: [currentTask] } });
+      }
+      if (url === "/api/tasks/task-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { task: currentTask } });
+      }
+      if (url === "/api/tasks/task-1" && init?.method === "PATCH") {
+        currentTask = {
+          ...currentTask,
+          title: "Updated task title",
+          description: "Updated execution notes",
+          version: 2,
+        };
+        return jsonResponse({ body: { task: currentTask } });
+      }
+      if (url === "/api/tasks/task-1/status" && init?.method === "POST") {
+        currentTask = {
+          ...currentTask,
+          status: workflowMetadataResponse().statuses[1],
+          version: 3,
+        };
+        return jsonResponse({ body: { task: currentTask } });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+
+    const taskTitleInputs = await screen.findAllByLabelText(/task title/i);
+    const taskDescriptionInputs = await screen.findAllByLabelText(/task description/i);
+    await user.clear(taskTitleInputs.at(-1)!);
+    await user.type(taskTitleInputs.at(-1)!, "Updated task title");
+    await user.clear(taskDescriptionInputs.at(-1)!);
+    await user.type(taskDescriptionInputs.at(-1)!, "Updated execution notes");
+    await user.click(screen.getByRole("button", { name: /save task/i }));
+
+    expect(await screen.findByText(/task updated/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Updated task title").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /start work/i }));
+
+    expect(await screen.findByText(/status updated/i)).toBeInTheDocument();
+    expect((await screen.findAllByText("IN_PROGRESS")).length).toBeGreaterThan(0);
+
+    const patchCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/tasks/task-1" && requestInit?.method === "PATCH",
+    );
+    expect(patchCall?.[1]?.body).toBe(
+      JSON.stringify({
+        title: "Updated task title",
+        description: "Updated execution notes",
+        priority_id: "priority-high",
+        start_date: "2026-05-01",
+        deadline: "2026-05-05",
+        primary_assignee_id: "user-1",
+        collaborator_ids: ["user-2"],
+        version: 1,
+      }),
+    );
+  });
+
+  it("shows an optimistic-lock conflict message and refreshes task detail", async () => {
+    let detailFetchCount = 0;
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
+      if (url === "/api/tasks/task-1" && (!init?.method || init.method === "GET")) {
+        detailFetchCount += 1;
+
+        return jsonResponse({
+          body: {
+            task: {
+              ...taskListResponse()[0],
+              title: detailFetchCount > 1 ? "Updated on server" : "Initial task",
+              version: detailFetchCount > 1 ? 2 : 1,
+            },
+          },
+        });
+      }
+      if (url === "/api/tasks/task-1" && init?.method === "PATCH") {
+        return jsonResponse({
+          status: 409,
+          body: {
+            error: {
+              code: "OPTIMISTIC_LOCK_FAILED",
+              message: "Task was modified by another user. Please refresh and try again.",
+              details: {
+                current_version: 2,
+              },
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+
+    const taskDescriptionInputs = await screen.findAllByLabelText(/task description/i);
+    await user.clear(taskDescriptionInputs.at(-1)!);
+    await user.type(taskDescriptionInputs.at(-1)!, "Conflicting change");
+    await user.click(screen.getByRole("button", { name: /save task/i }));
+
+    expect(
+      await screen.findByText(/this task was changed by someone else\. please refresh and try again\./i),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Updated on server")).toBeInTheDocument();
   });
 });

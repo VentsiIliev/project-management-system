@@ -1,8 +1,21 @@
-﻿# US-026 - Change Task Status  ## Metadata - Area: 7. Statuses and Workflow - GitHub labels: `user-story`, `mvp`, `area:workflow` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017, US-028 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** project member  
+# US-026 - Change Task Status
+
+## Metadata
+
+- Area: 7. Statuses and Workflow
+- GitHub labels: `user-story`, `mvp`, `area:workflow`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-019`, `US-028`
+- Parallelization note: Implement inside the same task-detail foundation slice. It reuses the same task read model, permission checks, version handling, and workspace UI.
+
+## User Story
+
+**As a** project member  
 **I want** to change task status  
 **So that** task progress is visible.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to change status  
 **When** I submit a valid status transition with the current version  
@@ -10,45 +23,37 @@
 
 **Given** the transition is not allowed  
 **When** I submit the status change  
-**Then** the system rejects the request with `INVALID_STATUS_TRANSITION`.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects the request with `INVALID_STATUS_TRANSITION`.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+- This slice only owns database-driven transition validation plus optimistic locking.
+- Blocked-task progression and parent/subtask completion rules belong to later stories and should not be invented here.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Backend Status Contract
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [ ] Add `POST /api/tasks/{task_id}/status`.
+- [ ] Require `to_status_id` and `version`.
+- [ ] Allow Admins, Project Managers, and Team Members to change status for visible tasks.
+- [ ] Validate the transition against active database-driven status transitions.
+- [ ] Increment task version on success.
+- [ ] Return `INVALID_STATUS_TRANSITION` for invalid or inactive transitions.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend Status Contract
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Show available status-change actions from workflow metadata and the current task status.
+- [ ] Let Team Members change status even when they cannot edit planning fields.
+- [ ] Reuse the same optimistic-lock handling pattern as task planning edits.
+
+### Tests
+
+- [ ] Add backend integration coverage for valid status changes, invalid transitions, and stale-version conflicts.
+- [ ] Add frontend tests for status changes and invalid/conflict error states.
+
+## Definition Of Done
+
+- Status changes use database-driven transitions.
+- Status mutations require the current version and increment it on success.
+- Team Members can change task status without gaining planning-field permissions.

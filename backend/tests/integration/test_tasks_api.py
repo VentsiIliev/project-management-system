@@ -1,9 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, close_old_connections
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
@@ -95,12 +97,14 @@ def create_task(
     created_by,
     title="Initial task",
     assignee=None,
+    collaborators=None,
     status_name=TaskStatusName.TODO,
     priority_name=None,
+    deadline=None,
 ):
     project.task_counter += 1
     project.save(update_fields=["task_counter", "updated_at"])
-    return Task.all_objects.create(
+    task = Task.all_objects.create(
         project=project,
         task_number=project.task_counter,
         task_key=f"{project.code}-{project.task_counter}",
@@ -109,7 +113,44 @@ def create_task(
         priority=get_priority(priority_name) if priority_name else None,
         primary_assignee=assignee,
         created_by=created_by,
+        deadline=deadline,
     )
+    if collaborators:
+        task.collaborators.set(collaborators)
+
+    return task
+
+
+def serialize_task(task: Task):
+    return {
+        "id": str(task.id),
+        "task_key": task.task_key,
+        "project_id": str(task.project_id),
+        "title": task.title,
+        "description": task.description,
+        "status": serialize_status(task.status),
+        "priority": serialize_priority(task.priority),
+        "primary_assignee": (
+            {
+                "id": str(task.primary_assignee_id),
+                "name": task.primary_assignee.name,
+            }
+            if task.primary_assignee
+            else None
+        ),
+        "collaborators": [
+            {"id": str(collaborator.id), "name": collaborator.name}
+            for collaborator in sorted(task.collaborators.all(), key=lambda user: (user.name, str(user.id)))
+        ],
+        "is_blocked": False,
+        "is_overdue": bool(task.deadline and not task.status.is_final and task.deadline < timezone.localdate()),
+        "start_date": task.start_date.isoformat() if task.start_date else None,
+        "deadline": task.deadline.isoformat() if task.deadline else None,
+        "version": task.version,
+        "created_at": task.created_at.isoformat().replace("+00:00", "Z"),
+        "subtasks": [],
+        "dependencies": [],
+    }
 
 
 @pytest.mark.django_db(transaction=True)
@@ -193,26 +234,7 @@ def test_visible_project_member_can_list_project_tasks():
     response = client.get(f"/api/projects/{project.id}/tasks")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "tasks": [
-            {
-                "id": str(task.id),
-                "task_key": "TSK-1",
-                "title": "Initial task",
-                "description": None,
-                "status": serialize_status(task.status),
-                "priority": serialize_priority(task.priority),
-                "primary_assignee": {
-                    "id": str(member_user.id),
-                    "name": member_user.name,
-                },
-                "start_date": None,
-                "deadline": None,
-                "version": 1,
-                "created_at": task.created_at.isoformat().replace("+00:00", "Z"),
-            }
-        ]
-    }
+    assert response.json() == {"tasks": [serialize_task(task)]}
 
 
 def test_non_member_cannot_list_project_tasks():
@@ -232,6 +254,63 @@ def test_non_member_cannot_list_project_tasks():
         "error": {
             "code": "PROJECT_NOT_FOUND",
             "message": "Project not found.",
+            "details": {},
+        }
+    }
+
+
+def test_visible_project_member_can_view_task_detail():
+    admin_user = create_user(
+        email="task-detail-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-detail-member@example.com")
+    collaborator = create_user(email="task-detail-collaborator@example.com")
+    project = create_project(owner=admin_user, code="DTL", name="Task Detail")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    create_membership(
+        project=project,
+        user=collaborator,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(
+        project=project,
+        created_by=admin_user,
+        assignee=member_user,
+        collaborators=[collaborator],
+        priority_name=TaskPriorityName.HIGH,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/tasks/{task.id}")
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(task)}
+
+
+def test_non_member_cannot_view_task_detail():
+    admin_user = create_user(
+        email="task-detail-hidden-admin@example.com",
+        is_admin=True,
+    )
+    outsider_user = create_user(email="task-detail-outsider@example.com")
+    project = create_project(owner=admin_user, code="HDT", name="Hidden Task Detail")
+    task = create_task(project=project, created_by=admin_user)
+    client = APIClient()
+    client.force_login(outsider_user)
+
+    response = client.get(f"/api/tasks/{task.id}")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "TASK_NOT_FOUND",
+            "message": "Task not found.",
             "details": {},
         }
     }
@@ -358,24 +437,7 @@ def test_admin_can_create_a_task_with_default_todo_status_and_priority():
     project.refresh_from_db()
 
     assert response.status_code == 201
-    assert response.json() == {
-        "task": {
-            "id": str(task.id),
-            "task_key": "ENG-1",
-            "title": "Implement login",
-            "description": "Add authentication flow",
-            "status": serialize_status(task.status),
-            "priority": serialize_priority(task.priority),
-            "primary_assignee": {
-                "id": str(assignee.id),
-                "name": assignee.name,
-            },
-            "start_date": "2026-05-01",
-            "deadline": "2026-05-05",
-            "version": 1,
-            "created_at": task.created_at.isoformat().replace("+00:00", "Z"),
-        }
-    }
+    assert response.json() == {"task": serialize_task(task)}
     assert task.status.name == TaskStatusName.TODO
     assert task.priority_id == high_priority.id
     assert task.task_key == "ENG-1"
@@ -571,3 +633,287 @@ def test_workflow_metadata_endpoints_return_seeded_statuses_transitions_and_prio
         TaskPriorityName.HIGH,
         TaskPriorityName.URGENT,
     ]
+
+
+def test_project_manager_can_update_task_planning_fields_and_collaborators():
+    admin_user = create_user(
+        email="task-update-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-update-manager@example.com")
+    assignee = create_user(email="task-update-assignee@example.com")
+    collaborator = create_user(email="task-update-collaborator@example.com")
+    project = create_project(owner=admin_user, code="UPD", name="Task Update")
+    for member, role in [
+        (manager_user, ProjectMembershipRole.PROJECT_MANAGER),
+        (assignee, ProjectMembershipRole.TEAM_MEMBER),
+        (collaborator, ProjectMembershipRole.TEAM_MEMBER),
+    ]:
+        create_membership(project=project, user=member, role=role)
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(manager_user)
+    priority = get_priority(TaskPriorityName.HIGH)
+
+    response = client.patch(
+        f"/api/tasks/{task.id}",
+        {
+            "title": "Updated title",
+            "description": "Updated description",
+            "priority_id": str(priority.id),
+            "start_date": "2026-05-02",
+            "deadline": "2026-05-07",
+            "primary_assignee_id": str(assignee.id),
+            "collaborator_ids": [str(collaborator.id)],
+            "version": 1,
+        },
+        format="json",
+    )
+
+    task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(task)}
+    assert task.title == "Updated title"
+    assert task.description == "Updated description"
+    assert task.priority_id == priority.id
+    assert task.primary_assignee_id == assignee.id
+    assert task.version == 2
+    assert list(task.collaborators.values_list("id", flat=True)) == [collaborator.id]
+
+
+def test_team_member_can_update_task_description_only():
+    admin_user = create_user(
+        email="task-update-description-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-update-description-member@example.com")
+    project = create_project(owner=admin_user, code="DSC", name="Task Description")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.patch(
+        f"/api/tasks/{task.id}",
+        {"description": "Execution notes", "version": 1},
+        format="json",
+    )
+
+    task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(task)}
+    assert task.description == "Execution notes"
+    assert task.title == "Initial title"
+    assert task.version == 2
+
+
+def test_team_member_cannot_update_task_planning_fields():
+    admin_user = create_user(
+        email="task-update-planning-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-update-planning-member@example.com")
+    project = create_project(owner=admin_user, code="PLN", name="Task Planning")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.patch(
+        f"/api/tasks/{task.id}",
+        {"title": "Forbidden title", "version": 1},
+        format="json",
+    )
+
+    task.refresh_from_db()
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "TASK_PERMISSION_DENIED",
+            "message": "You do not have permission to update this task.",
+            "details": {},
+        }
+    }
+    assert task.title == "Initial title"
+    assert task.version == 1
+
+
+def test_task_update_rejects_stale_version():
+    admin_user = create_user(
+        email="task-update-lock-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-update-lock-manager@example.com")
+    project = create_project(owner=admin_user, code="LCK", name="Task Lock")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    task.version = 3
+    task.save(update_fields=["version", "updated_at"])
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.patch(
+        f"/api/tasks/{task.id}",
+        {"description": "Conflicting change", "version": 2},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": {
+            "code": "OPTIMISTIC_LOCK_FAILED",
+            "message": "Task was modified by another user. Please refresh and try again.",
+            "details": {"current_version": 3},
+        }
+    }
+
+
+def test_task_update_rejects_collaborator_who_is_not_active_project_member():
+    admin_user = create_user(
+        email="task-update-collab-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-update-collab-manager@example.com")
+    outsider = create_user(email="task-update-collab-outsider@example.com")
+    project = create_project(owner=admin_user, code="COL", name="Task Collaborators")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.patch(
+        f"/api/tasks/{task.id}",
+        {"collaborator_ids": [str(outsider.id)], "version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "collaborator_ids": ["Collaborators must be active project members."],
+            },
+        }
+    }
+
+
+def test_project_member_can_change_task_status():
+    admin_user = create_user(
+        email="task-status-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-member@example.com")
+    project = create_project(owner=admin_user, code="STS", name="Task Status")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(member_user)
+    to_status = get_status(TaskStatusName.IN_PROGRESS)
+
+    response = client.post(
+        f"/api/tasks/{task.id}/status",
+        {"to_status_id": str(to_status.id), "version": 1},
+        format="json",
+    )
+
+    task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(task)}
+    assert task.status_id == to_status.id
+    assert task.version == 2
+
+
+def test_change_task_status_rejects_invalid_transition():
+    admin_user = create_user(
+        email="task-status-invalid-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-invalid-member@example.com")
+    project = create_project(owner=admin_user, code="INV", name="Invalid Status")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Initial title")
+    client = APIClient()
+    client.force_login(member_user)
+    to_status = get_status(TaskStatusName.DONE)
+
+    response = client.post(
+        f"/api/tasks/{task.id}/status",
+        {"to_status_id": str(to_status.id), "version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_STATUS_TRANSITION",
+            "message": "The requested status transition is not allowed.",
+            "details": {},
+        }
+    }
+
+
+def test_task_detail_computes_overdue_state():
+    admin_user = create_user(
+        email="task-overdue-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-overdue-member@example.com")
+    project = create_project(owner=admin_user, code="DUE", name="Overdue Task")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    overdue_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Overdue task",
+        deadline=timezone.localdate() - timedelta(days=1),
+    )
+    done_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Done task",
+        deadline=timezone.localdate() - timedelta(days=1),
+        status_name=TaskStatusName.DONE,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    overdue_response = client.get(f"/api/tasks/{overdue_task.id}")
+    done_response = client.get(f"/api/tasks/{done_task.id}")
+
+    assert overdue_response.status_code == 200
+    assert overdue_response.json()["task"]["is_overdue"] is True
+    assert done_response.status_code == 200
+    assert done_response.json()["task"]["is_overdue"] is False

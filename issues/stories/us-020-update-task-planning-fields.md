@@ -1,8 +1,21 @@
-﻿# US-020 - Update Task Planning Fields  ## Metadata - Area: 5. Task Management - GitHub labels: `user-story`, `mvp`, `area:tasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-020 - Update Task Planning Fields
+
+## Metadata
+
+- Area: 5. Task Management
+- GitHub labels: `user-story`, `mvp`, `area:tasks`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-017`, `US-019`, `US-028`, `US-053`
+- Parallelization note: Implement with `US-019`, `US-021`, `US-026`, `US-070`, and `US-071` because the same backend patch contract and workspace edit UI own all of them.
+
+## User Story
+
+**As an** Admin or Project Manager  
 **I want** to update task planning fields  
 **So that** project plans stay accurate.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I am an Admin or Project Manager  
 **When** I update title, priority, dates, assignee, collaborators, or description with the current version  
@@ -10,45 +23,53 @@
 
 **Given** I submit an outdated task version  
 **When** I update the task  
-**Then** the system rejects the request with `OPTIMISTIC_LOCK_FAILED`.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects the request with `OPTIMISTIC_LOCK_FAILED`.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+- This story owns the first `PATCH /api/tasks/{task_id}` contract.
+- Collaborator persistence belongs in this slice because the accepted update contract already includes `collaborator_ids`; do not defer it to an imaginary later story.
+- Frontend optimistic-lock handling from `US-059` should be absorbed here instead of waiting for a separate task-only conflict slice.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Backend Update Contract
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [ ] Add `PATCH /api/tasks/{task_id}`.
+- [ ] Require `version` for every task mutation.
+- [ ] Allow Admins and Project Managers to update:
+  - title
+  - description
+  - priority
+  - start date
+  - deadline
+  - primary assignee
+  - collaborators
+- [ ] Increment task `version` on success.
+- [ ] Return `OPTIMISTIC_LOCK_FAILED` with `current_version` when the submitted version is stale.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Validation
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Reuse active project-member validation for assignee and collaborators.
+- [ ] Reject inactive priorities on update.
+- [ ] Reject invalid date ranges.
+- [ ] Reject collaborator lists that duplicate the primary assignee.
+
+### Frontend Update Contract
+
+- [ ] Add a task edit form in the project workspace for manager-capable users.
+- [ ] Use workflow metadata and member data to drive status, priority, assignee, and collaborator controls.
+- [ ] On optimistic-lock failure, show: `This task was changed by someone else. Please refresh and try again.`
+- [ ] Refresh task detail after the conflict response and allow manual retry.
+
+### Tests
+
+- [ ] Add backend integration coverage for successful task updates, stale-version conflicts, and validation failures.
+- [ ] Add frontend tests for successful edit and optimistic-lock conflict handling.
+
+## Definition Of Done
+
+- Task planning fields can be updated through a versioned patch endpoint.
+- Successful updates increment task version.
+- Stale updates return the expected optimistic-lock contract.
+- The workspace edit form reflects backend validation and conflict responses clearly.

@@ -2,20 +2,48 @@ import time
 
 from django.contrib.auth import get_user_model
 from django.db import OperationalError, transaction
+from django.utils import timezone
 
 from apps.memberships.models import ProjectMembership
 from apps.projects.models import Project
 from apps.projects.selectors import visible_projects_for_user
-from apps.tasks.models import Task, TaskPriority, TaskStatusName, TaskWorkflowStatus
+from apps.tasks.models import (
+    Task,
+    TaskPriority,
+    TaskStatusName,
+    TaskStatusTransition,
+    TaskWorkflowStatus,
+)
+from apps.tasks.selectors import visible_tasks_for_user
 
-from .policies import can_create_task
+from .policies import (
+    can_change_task_status,
+    can_create_task,
+    can_update_task_description,
+    can_update_task_planning,
+)
+
+
+UNSET = object()
 
 
 class TaskProjectNotFoundError(Exception):
     pass
 
 
+class TaskNotFoundError(Exception):
+    pass
+
+
 class TaskCreatePermissionDeniedError(Exception):
+    pass
+
+
+class TaskUpdatePermissionDeniedError(Exception):
+    pass
+
+
+class TaskStatusChangePermissionDeniedError(Exception):
     pass
 
 
@@ -37,6 +65,22 @@ class InvalidTaskPriorityError(Exception):
         self.details = details
 
 
+class InvalidTaskCollaboratorError(Exception):
+    def __init__(self, details: dict[str, list[str]]):
+        super().__init__("Invalid task collaborators.")
+        self.details = details
+
+
+class TaskOptimisticLockError(Exception):
+    def __init__(self, *, current_version: int):
+        super().__init__("Task was modified by another user. Please refresh and try again.")
+        self.current_version = current_version
+
+
+class InvalidTaskStatusTransitionError(Exception):
+    pass
+
+
 def get_project_for_actor(*, actor, project_id):
     project = visible_projects_for_user(user=actor).filter(id=project_id).first()
     if project is None:
@@ -50,9 +94,18 @@ def list_tasks_for_actor(*, actor, project_id):
     tasks = (
         Task.objects.filter(project=project)
         .select_related("primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
         .order_by("task_number")
     )
     return project, list(tasks)
+
+
+def get_task_for_actor(*, actor, task_id):
+    task = visible_tasks_for_user(user=actor).filter(id=task_id).first()
+    if task is None:
+        raise TaskNotFoundError
+
+    return task
 
 
 def get_default_task_status() -> TaskWorkflowStatus:
@@ -61,6 +114,104 @@ def get_default_task_status() -> TaskWorkflowStatus:
         raise RuntimeError("Default TODO task status is not configured.")
 
     return status
+
+
+def is_task_overdue(task: Task) -> bool:
+    if task.deadline is None or task.status.is_final:
+        return False
+
+    return task.deadline < timezone.localdate()
+
+
+def _validate_active_project_member(*, project, user_id, field_name: str):
+    user_model = get_user_model()
+    member = user_model.objects.filter(id=user_id).first()
+    if member is None or not member.is_active:
+        raise InvalidTaskAssigneeError(
+            {field_name: ["The assignee must be an active project member."]}
+        )
+
+    is_active_member = ProjectMembership.objects.filter(
+        project=project,
+        user=member,
+        deleted_at__isnull=True,
+    ).exists()
+    if not is_active_member:
+        raise InvalidTaskAssigneeError(
+            {field_name: ["The assignee must be an active project member."]}
+        )
+
+    return member
+
+
+def _validate_task_date_range(*, start_date, deadline):
+    if start_date and deadline and deadline < start_date:
+        raise InvalidTaskDateRangeError(
+            {"deadline": ["Deadline cannot be earlier than start date."]}
+        )
+
+
+def _validate_task_priority(*, priority_id):
+    if priority_id is None:
+        return None
+
+    priority = TaskPriority.objects.filter(id=priority_id).first()
+    if priority is None:
+        raise InvalidTaskPriorityError(
+            {"priority_id": ["The selected priority does not exist."]}
+        )
+    if not priority.is_active:
+        raise InvalidTaskPriorityError(
+            {"priority_id": ["Inactive priorities cannot be assigned to new tasks."]}
+        )
+
+    return priority
+
+
+def _validate_collaborators(*, project, collaborator_ids, primary_assignee):
+    unique_ids = list(dict.fromkeys(collaborator_ids))
+    if primary_assignee is not None and str(primary_assignee.id) in {
+        str(collaborator_id) for collaborator_id in unique_ids
+    }:
+        raise InvalidTaskCollaboratorError(
+            {
+                "collaborator_ids": [
+                    "The primary assignee cannot also be listed as a collaborator."
+                ]
+            }
+        )
+
+    user_model = get_user_model()
+    collaborators = list(user_model.objects.filter(id__in=unique_ids))
+    collaborators_by_id = {str(user.id): user for user in collaborators}
+    if len(collaborators_by_id) != len(unique_ids):
+        raise InvalidTaskCollaboratorError(
+            {
+                "collaborator_ids": [
+                    "Collaborators must be active project members."
+                ]
+            }
+        )
+
+    membership_ids = {
+        str(user_id)
+        for user_id in ProjectMembership.objects.filter(
+            project=project,
+            deleted_at__isnull=True,
+            user_id__in=unique_ids,
+            user__is_active=True,
+        ).values_list("user_id", flat=True)
+    }
+    if membership_ids != {str(collaborator_id) for collaborator_id in unique_ids}:
+        raise InvalidTaskCollaboratorError(
+            {
+                "collaborator_ids": [
+                    "Collaborators must be active project members."
+                ]
+            }
+        )
+
+    return [collaborators_by_id[str(collaborator_id)] for collaborator_id in unique_ids]
 
 
 @transaction.atomic
@@ -89,41 +240,16 @@ def _create_task_once(
     if not can_create_task(user=actor, project=project):
         raise TaskCreatePermissionDeniedError
 
-    if start_date and deadline and deadline < start_date:
-        raise InvalidTaskDateRangeError(
-            {"deadline": ["Deadline cannot be earlier than start date."]}
-        )
+    _validate_task_date_range(start_date=start_date, deadline=deadline)
 
-    priority = None
-    if priority_id is not None:
-        priority = TaskPriority.objects.filter(id=priority_id).first()
-        if priority is None:
-            raise InvalidTaskPriorityError(
-                {"priority_id": ["The selected priority does not exist."]}
-            )
-        if not priority.is_active:
-            raise InvalidTaskPriorityError(
-                {"priority_id": ["Inactive priorities cannot be assigned to new tasks."]}
-            )
-
+    priority = _validate_task_priority(priority_id=priority_id)
     primary_assignee = None
     if primary_assignee_id is not None:
-        user_model = get_user_model()
-        primary_assignee = user_model.objects.filter(id=primary_assignee_id).first()
-        if primary_assignee is None or not primary_assignee.is_active:
-            raise InvalidTaskAssigneeError(
-                {"primary_assignee_id": ["The assignee must be an active project member."]}
-            )
-
-        is_active_member = ProjectMembership.objects.filter(
+        primary_assignee = _validate_active_project_member(
             project=project,
-            user=primary_assignee,
-            deleted_at__isnull=True,
-        ).exists()
-        if not is_active_member:
-            raise InvalidTaskAssigneeError(
-                {"primary_assignee_id": ["The assignee must be an active project member."]}
-            )
+            user_id=primary_assignee_id,
+            field_name="primary_assignee_id",
+        )
 
     next_task_number = project.task_counter + 1
     project.task_counter = next_task_number
@@ -173,3 +299,166 @@ def create_task(
                 raise
 
             time.sleep(0.05)
+
+
+@transaction.atomic
+def update_task(
+    *,
+    actor,
+    task_id,
+    version: int,
+    title=UNSET,
+    description=UNSET,
+    priority_id=UNSET,
+    start_date=UNSET,
+    deadline=UNSET,
+    primary_assignee_id=UNSET,
+    collaborator_ids=UNSET,
+):
+    task = (
+        Task.objects.select_for_update()
+        .select_related("project", "primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
+        .filter(id=task_id, project__in=visible_projects_for_user(user=actor))
+        .first()
+    )
+    if task is None:
+        raise TaskNotFoundError
+
+    if task.version != version:
+        raise TaskOptimisticLockError(current_version=task.version)
+
+    requested_fields = set()
+    for field_name, field_value in {
+        "title": title,
+        "description": description,
+        "priority_id": priority_id,
+        "start_date": start_date,
+        "deadline": deadline,
+        "primary_assignee_id": primary_assignee_id,
+        "collaborator_ids": collaborator_ids,
+    }.items():
+        if field_value is not UNSET:
+            requested_fields.add(field_name)
+
+    planning_fields = {
+        "title",
+        "priority_id",
+        "start_date",
+        "deadline",
+        "primary_assignee_id",
+        "collaborator_ids",
+    }
+    description_only = requested_fields <= {"description"}
+    includes_planning_fields = bool(requested_fields & planning_fields)
+
+    if includes_planning_fields and not can_update_task_planning(user=actor, project=task.project):
+        raise TaskUpdatePermissionDeniedError
+    if description_only and not can_update_task_description(user=actor, project=task.project):
+        raise TaskUpdatePermissionDeniedError
+
+    next_start_date = task.start_date if start_date is UNSET else start_date
+    next_deadline = task.deadline if deadline is UNSET else deadline
+    _validate_task_date_range(start_date=next_start_date, deadline=next_deadline)
+
+    next_priority = task.priority
+    if priority_id is not UNSET:
+        next_priority = _validate_task_priority(priority_id=priority_id)
+
+    next_primary_assignee = task.primary_assignee
+    if primary_assignee_id is not UNSET:
+        if primary_assignee_id is None:
+            next_primary_assignee = None
+        else:
+            next_primary_assignee = _validate_active_project_member(
+                project=task.project,
+                user_id=primary_assignee_id,
+                field_name="primary_assignee_id",
+            )
+
+    next_collaborators = None
+    if collaborator_ids is not UNSET:
+        next_collaborators = _validate_collaborators(
+            project=task.project,
+            collaborator_ids=collaborator_ids,
+            primary_assignee=next_primary_assignee,
+        )
+
+    updated_fields = {"version", "updated_at"}
+    if title is not UNSET:
+        task.title = title
+        updated_fields.add("title")
+    if description is not UNSET:
+        task.description = description or None
+        updated_fields.add("description")
+    if priority_id is not UNSET:
+        task.priority = next_priority
+        updated_fields.add("priority")
+    if start_date is not UNSET:
+        task.start_date = start_date
+        updated_fields.add("start_date")
+    if deadline is not UNSET:
+        task.deadline = deadline
+        updated_fields.add("deadline")
+    if primary_assignee_id is not UNSET:
+        task.primary_assignee = next_primary_assignee
+        updated_fields.add("primary_assignee")
+
+    task.version += 1
+    task.save(update_fields=sorted(updated_fields))
+
+    if next_collaborators is not None:
+        task.collaborators.set(next_collaborators)
+
+    return (
+        Task.objects.select_related("primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
+        .get(id=task.id)
+    )
+
+
+@transaction.atomic
+def change_task_status(
+    *,
+    actor,
+    task_id,
+    to_status_id,
+    version: int,
+):
+    task = (
+        Task.objects.select_for_update()
+        .select_related("project", "primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
+        .filter(id=task_id, project__in=visible_projects_for_user(user=actor))
+        .first()
+    )
+    if task is None:
+        raise TaskNotFoundError
+
+    if not can_change_task_status(user=actor, project=task.project):
+        raise TaskStatusChangePermissionDeniedError
+
+    if task.version != version:
+        raise TaskOptimisticLockError(current_version=task.version)
+
+    to_status = TaskWorkflowStatus.objects.filter(id=to_status_id, is_active=True).first()
+    if to_status is None:
+        raise InvalidTaskStatusTransitionError
+
+    transition_exists = TaskStatusTransition.objects.filter(
+        from_status=task.status,
+        to_status=to_status,
+        is_active=True,
+    ).exists()
+    if not transition_exists:
+        raise InvalidTaskStatusTransitionError
+
+    task.status = to_status
+    task.version += 1
+    task.save(update_fields=["status", "version", "updated_at"])
+
+    return (
+        Task.objects.select_related("primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
+        .get(id=task.id)
+    )

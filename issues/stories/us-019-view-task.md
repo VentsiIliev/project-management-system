@@ -1,8 +1,21 @@
-﻿# US-019 - View Task  ## Metadata - Area: 5. Task Management - GitHub labels: `user-story`, `mvp`, `area:tasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** project member  
+# US-019 - View Task
+
+## Metadata
+
+- Area: 5. Task Management
+- GitHub labels: `user-story`, `mvp`, `area:tasks`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-017`, `US-028`, `US-053`
+- Parallelization note: Implement together with `US-020`, `US-021`, `US-026`, `US-070`, and `US-071` as one task-detail and task-update foundation slice.
+
+## User Story
+
+**As a** project member  
 **I want** to view task details  
 **So that** I can understand the work.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have access to the task's project  
 **When** I open the task  
@@ -10,45 +23,47 @@
 
 **Given** I do not have access to the task's project  
 **When** I attempt to open the task  
-**Then** the system denies access.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies access.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+- This slice is the first single-task read and edit foundation after task creation.
+- Dependencies and subtasks are not implemented yet, so task detail should return stable empty collections and a computed `is_blocked = false` placeholder until `US-023`, `US-029`, `US-030`, `US-031`, and `US-032` land.
+- Workflow metadata reads already exist from `US-028` and `US-053`; reuse them for status and priority rendering instead of hard-coding frontend values.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Backend Read Contract
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [ ] Add `GET /api/tasks/{task_id}` for any visible task.
+- [ ] Return the task detail contract with:
+  - task identity and project id
+  - title and description
+  - structured status and priority objects
+  - primary assignee and collaborators
+  - dates
+  - `is_blocked`
+  - `is_overdue`
+  - `version`
+  - `subtasks`
+  - `dependencies`
+- [ ] Use backend visibility rules so non-members and removed members receive `404`.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Frontend Read Contract
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Add task selection in the project workspace.
+- [ ] Load task detail separately from the project task list.
+- [ ] Show loading, empty, not-found, and generic error states inside the task detail area.
+- [ ] Render overdue and inactive metadata clearly without inventing new frontend-only workflow meaning.
+
+### Tests
+
+- [ ] Add backend integration coverage for visible-task read and hidden-task read.
+- [ ] Add frontend tests for selecting a task and rendering the detail state.
+
+## Definition Of Done
+
+- Task detail can be fetched for any visible task.
+- Inaccessible task ids do not leak project visibility.
+- The task detail response already contains stable placeholders for future subtask and dependency features.
+- The project workspace can open and render a single task detail view.
