@@ -4,7 +4,7 @@
 
 - Area: 7. Statuses and Workflow
 - GitHub labels: `user-story`, `mvp`, `area:workflow`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 0`
 - Depends on: `US-017`
 - Parallelization note: Keep this grouped with `US-053` because both stories reshape the task metadata contract used by task create, task list, and later task update and Kanban work.

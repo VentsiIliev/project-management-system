@@ -4,7 +4,7 @@
 
 - Area: 16. Priorities and Metadata
 - GitHub labels: `user-story`, `mvp`, `area:metadata`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 0`
 - Depends on: `US-017`
 - Parallelization note: Deliver this with `US-028` because both stories change the task metadata contract.
