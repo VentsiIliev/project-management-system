@@ -22,7 +22,35 @@ function stubFetch(
   handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
-    handler(String(input), init),
+    {
+      const url = String(input);
+
+      if (url === "/api/task-statuses") {
+        return jsonResponse({
+          body: {
+            statuses: workflowMetadataResponse().statuses,
+          },
+        });
+      }
+
+      if (url === "/api/task-status-transitions") {
+        return jsonResponse({
+          body: {
+            transitions: workflowMetadataResponse().transitions,
+          },
+        });
+      }
+
+      if (url === "/api/task-priorities") {
+        return jsonResponse({
+          body: {
+            priorities: workflowMetadataResponse().priorities,
+          },
+        });
+      }
+
+      return handler(url, init);
+    },
   );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -94,7 +122,21 @@ function taskListResponse(overrides?: Array<Record<string, unknown>>) {
         task_key: "ENG-1",
         title: "Initial task",
         description: "Track the first delivery item.",
-        status: { name: "TODO" },
+        status: {
+          id: "status-todo",
+          name: "TODO",
+          sort_order: 1,
+          is_final: false,
+          is_active: true,
+          color: null,
+        },
+        priority: {
+          id: "priority-high",
+          name: "HIGH",
+          sort_order: 3,
+          is_active: true,
+          color: null,
+        },
         primary_assignee: {
           id: "user-1",
           name: "Jane Doe",
@@ -106,6 +148,69 @@ function taskListResponse(overrides?: Array<Record<string, unknown>>) {
       },
     ]
   );
+}
+
+function workflowMetadataResponse() {
+  return {
+    statuses: [
+      {
+        id: "status-todo",
+        name: "TODO",
+        sort_order: 1,
+        is_final: false,
+        is_active: true,
+        color: null,
+      },
+      {
+        id: "status-in-progress",
+        name: "IN_PROGRESS",
+        sort_order: 2,
+        is_final: false,
+        is_active: true,
+        color: null,
+      },
+      {
+        id: "status-done",
+        name: "DONE",
+        sort_order: 3,
+        is_final: true,
+        is_active: false,
+        color: null,
+      },
+    ],
+    transitions: [
+      {
+        id: "transition-1",
+        name: "Start work",
+        is_active: true,
+        from_status_id: "status-todo",
+        to_status_id: "status-in-progress",
+      },
+    ],
+    priorities: [
+      {
+        id: "priority-low",
+        name: "LOW",
+        sort_order: 1,
+        is_active: true,
+        color: null,
+      },
+      {
+        id: "priority-high",
+        name: "HIGH",
+        sort_order: 3,
+        is_active: true,
+        color: null,
+      },
+      {
+        id: "priority-urgent",
+        name: "URGENT",
+        sort_order: 4,
+        is_active: false,
+        color: null,
+      },
+    ],
+  };
 }
 
 describe("projects flow", () => {
@@ -157,7 +262,8 @@ describe("projects flow", () => {
                 task_key: "ENG-9",
                 title: "Initial task",
                 description: "Track the first delivery item.",
-                status: { name: "TODO" },
+                status: workflowMetadataResponse().statuses[0],
+                priority: null,
                 primary_assignee: null,
                 start_date: null,
                 deadline: null,
@@ -458,7 +564,8 @@ describe("projects flow", () => {
               task_key: "ENG-1",
               title: "Implement login",
               description: "Add authentication flow",
-              status: { name: "TODO" },
+              status: workflowMetadataResponse().statuses[0],
+              priority: workflowMetadataResponse().priorities[1],
               primary_assignee: {
                 id: "user-1",
                 name: "Jane Doe",
@@ -480,6 +587,7 @@ describe("projects flow", () => {
 
     await user.type(await screen.findByLabelText(/task title/i), "Implement login");
     await user.type(screen.getByLabelText(/task description/i), "Add authentication flow");
+    await user.selectOptions(screen.getByLabelText(/^priority$/i), "priority-high");
     await user.selectOptions(screen.getByLabelText(/primary assignee/i), "user-1");
     await user.type(screen.getByLabelText(/task start date/i), "2026-05-01");
     await user.type(screen.getByLabelText(/task deadline/i), "2026-05-05");
@@ -488,6 +596,7 @@ describe("projects flow", () => {
     expect(await screen.findByText(/task created/i)).toBeInTheDocument();
     expect(await screen.findByText("ENG-1")).toBeInTheDocument();
     expect(await screen.findByText("Implement login")).toBeInTheDocument();
+    expect((await screen.findAllByText("HIGH")).length).toBeGreaterThan(0);
     const taskCall = fetchMock.mock.calls.find(
       ([requestUrl, requestInit]) =>
         requestUrl === "/api/projects/project-1/tasks" && requestInit?.method === "POST",
@@ -496,6 +605,7 @@ describe("projects flow", () => {
       JSON.stringify({
         title: "Implement login",
         description: "Add authentication flow",
+        priority_id: "priority-high",
         start_date: "2026-05-01",
         deadline: "2026-05-05",
         primary_assignee_id: "user-1",
@@ -872,7 +982,8 @@ describe("projects flow", () => {
                 task_key: "ENG-2",
                 title: "Visible task",
                 description: null,
-                status: { name: "TODO" },
+                status: workflowMetadataResponse().statuses[0],
+                priority: workflowMetadataResponse().priorities[2],
                 primary_assignee: null,
                 start_date: null,
                 deadline: null,
@@ -892,5 +1003,6 @@ describe("projects flow", () => {
     expect(await screen.findByText(/task creation is restricted/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /create task/i })).not.toBeInTheDocument();
     expect(screen.getByText("Visible task")).toBeInTheDocument();
+    expect(screen.getByText("URGENT (inactive)")).toBeInTheDocument();
   });
 });

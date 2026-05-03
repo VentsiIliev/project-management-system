@@ -4,7 +4,7 @@ from django.db import transaction
 from apps.memberships.models import ProjectMembership
 from apps.projects.models import Project
 from apps.projects.selectors import visible_projects_for_user
-from apps.tasks.models import Task, TaskStatus
+from apps.tasks.models import Task, TaskPriority, TaskStatusName, TaskWorkflowStatus
 
 from .policies import can_create_task
 
@@ -29,6 +29,12 @@ class InvalidTaskAssigneeError(Exception):
         self.details = details
 
 
+class InvalidTaskPriorityError(Exception):
+    def __init__(self, details: dict[str, list[str]]):
+        super().__init__("Invalid task priority.")
+        self.details = details
+
+
 def get_project_for_actor(*, actor, project_id):
     project = visible_projects_for_user(user=actor).filter(id=project_id).first()
     if project is None:
@@ -41,10 +47,18 @@ def list_tasks_for_actor(*, actor, project_id):
     project = get_project_for_actor(actor=actor, project_id=project_id)
     tasks = (
         Task.objects.filter(project=project)
-        .select_related("primary_assignee")
+        .select_related("primary_assignee", "priority", "status")
         .order_by("task_number")
     )
     return project, list(tasks)
+
+
+def get_default_task_status() -> TaskWorkflowStatus:
+    status = TaskWorkflowStatus.objects.filter(name=TaskStatusName.TODO).first()
+    if status is None:
+        raise RuntimeError("Default TODO task status is not configured.")
+
+    return status
 
 
 @transaction.atomic
@@ -54,6 +68,7 @@ def create_task(
     project_id,
     title: str,
     description: str | None = None,
+    priority_id=None,
     start_date=None,
     deadline=None,
     primary_assignee_id=None,
@@ -76,6 +91,18 @@ def create_task(
         raise InvalidTaskDateRangeError(
             {"deadline": ["Deadline cannot be earlier than start date."]}
         )
+
+    priority = None
+    if priority_id is not None:
+        priority = TaskPriority.objects.filter(id=priority_id).first()
+        if priority is None:
+            raise InvalidTaskPriorityError(
+                {"priority_id": ["The selected priority does not exist."]}
+            )
+        if not priority.is_active:
+            raise InvalidTaskPriorityError(
+                {"priority_id": ["Inactive priorities cannot be assigned to new tasks."]}
+            )
 
     primary_assignee = None
     if primary_assignee_id is not None:
@@ -106,7 +133,8 @@ def create_task(
         task_key=f"{project.code}-{next_task_number}",
         title=title,
         description=description or None,
-        status=TaskStatus.TODO,
+        status=get_default_task_status(),
+        priority=priority,
         primary_assignee=primary_assignee,
         created_by=actor,
         start_date=start_date,

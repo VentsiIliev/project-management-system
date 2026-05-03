@@ -21,6 +21,7 @@ import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import { useRemoveProjectMemberMutation } from "../hooks/useRemoveProjectMemberMutation";
 import { useUpdateProjectMemberMutation } from "../hooks/useUpdateProjectMemberMutation";
 import { useUpdateProjectMutation } from "../hooks/useUpdateProjectMutation";
+import { useWorkflowMetadataQuery } from "../hooks/useWorkflowMetadataQuery";
 import {
   addProjectMemberSchema,
   type AddProjectMemberFormValues,
@@ -65,6 +66,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const projectQuery = useProjectQuery(projectId);
   const projectMembersQuery = useProjectMembersQuery(projectQuery.data ? projectId : null);
   const projectTasksQuery = useProjectTasksQuery(projectQuery.data ? projectId : null);
+  const workflowMetadataQuery = useWorkflowMetadataQuery(Boolean(projectId));
   const updateProjectMutation = useUpdateProjectMutation(projectId);
   const addProjectMemberMutation = useAddProjectMemberMutation(projectId);
   const updateProjectMemberMutation = useUpdateProjectMemberMutation(projectId);
@@ -134,6 +136,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       start_date: "",
       deadline: "",
       primary_assignee_id: "",
+      priority_id: "",
     },
     resolver: zodResolver(createProjectTaskSchema),
   });
@@ -223,6 +226,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const serverTaskDescriptionError = getDetailMessages(createProjectTaskError?.details.description)[0];
   const serverTaskStartDateError = getDetailMessages(createProjectTaskError?.details.start_date)[0];
   const serverTaskDeadlineError = getDetailMessages(createProjectTaskError?.details.deadline)[0];
+  const serverTaskPriorityError = getDetailMessages(createProjectTaskError?.details.priority_id)[0];
   const serverTaskAssigneeError = getDetailMessages(
     createProjectTaskError?.details.primary_assignee_id,
   )[0];
@@ -232,6 +236,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     !serverTaskDescriptionError &&
     !serverTaskStartDateError &&
     !serverTaskDeadlineError &&
+    !serverTaskPriorityError &&
     !serverTaskAssigneeError &&
     createProjectTaskError.code !== "PROJECT_PERMISSION_DENIED"
       ? createProjectTaskError.message
@@ -284,6 +289,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     resetTaskForm({
       title: "",
       description: "",
+      priority_id: "",
       start_date: "",
       deadline: "",
       primary_assignee_id: "",
@@ -458,7 +464,15 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     <span>{task.description || "No description yet."}</span>
                   </div>
                   <div className="task-list__meta">
-                    <span className="task-status-pill">{task.status.name}</span>
+                    <span className="task-status-pill">
+                      {task.status.name}
+                      {!task.status.is_active ? " (inactive)" : ""}
+                    </span>
+                    <span>
+                      {task.priority
+                        ? `${task.priority.name}${task.priority.is_active ? "" : " (inactive)"}`
+                        : "No priority"}
+                    </span>
                     <span>{task.primary_assignee?.name || "Unassigned"}</span>
                     <span>{task.deadline ? `Due ${task.deadline}` : "No deadline"}</span>
                   </div>
@@ -481,6 +495,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   {
                     title: values.title,
                     description: values.description || undefined,
+                    priority_id: values.priority_id || null,
                     start_date: values.start_date || null,
                     deadline: values.deadline || null,
                     primary_assignee_id: values.primary_assignee_id || null,
@@ -491,6 +506,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                       resetTaskForm({
                         title: "",
                         description: "",
+                        priority_id: values.priority_id,
                         start_date: "",
                         deadline: "",
                         primary_assignee_id: values.primary_assignee_id,
@@ -517,6 +533,24 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                 {taskErrors.description?.message ?? serverTaskDescriptionError ? (
                   <span className="field__error" role="alert">
                     {taskErrors.description?.message ?? serverTaskDescriptionError}
+                  </span>
+                ) : null}
+              </label>
+              <label className="field" htmlFor="task-priority">
+                <span className="field__label">Priority</span>
+                <select className="field__input" id="task-priority" {...registerTask("priority_id")}>
+                  <option value="">No priority</option>
+                  {workflowMetadataQuery.data?.priorities
+                    .filter((priority) => priority.is_active)
+                    .map((priority) => (
+                      <option key={priority.id} value={priority.id}>
+                        {priority.name}
+                      </option>
+                    ))}
+                </select>
+                {taskErrors.priority_id?.message ?? serverTaskPriorityError ? (
+                  <span className="field__error" role="alert">
+                    {taskErrors.priority_id?.message ?? serverTaskPriorityError}
                   </span>
                 ) : null}
               </label>
@@ -557,6 +591,11 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   {createProjectTaskError.message}
                 </StatusMessage>
               ) : null}
+              {isApiError(workflowMetadataQuery.error) ? (
+                <StatusMessage tone="error" title="Workflow metadata unavailable">
+                  {workflowMetadataQuery.error.message}
+                </StatusMessage>
+              ) : null}
               {serverTaskFormError ? (
                 <StatusMessage tone="error" title="Task creation failed">
                   {serverTaskFormError}
@@ -564,10 +603,13 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
               ) : null}
               {showTaskSuccess ? (
                 <StatusMessage title="Task created">
-                  The project task list was updated with the new TODO task.
+                  The project task list was updated with the new seeded TODO task.
                 </StatusMessage>
               ) : null}
-              <Button disabled={createProjectTaskMutation.isPending} type="submit">
+              <Button
+                disabled={createProjectTaskMutation.isPending || workflowMetadataQuery.isPending}
+                type="submit"
+              >
                 {createProjectTaskMutation.isPending ? "Creating task..." : "Create task"}
               </Button>
             </form>

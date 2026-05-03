@@ -10,6 +10,7 @@ import {
   type Task,
   type UpdateProjectMemberRequest,
   type UpdateProjectRequest,
+  type WorkflowMetadata,
 } from "../types";
 
 
@@ -102,4 +103,18 @@ export async function createProjectTask(
     method: "POST",
   });
   return response.task;
+}
+
+export async function getWorkflowMetadata(): Promise<WorkflowMetadata> {
+  const [statusesResponse, transitionsResponse, prioritiesResponse] = await Promise.all([
+    apiRequest<{ statuses: WorkflowMetadata["statuses"] }>("/task-statuses"),
+    apiRequest<{ transitions: WorkflowMetadata["transitions"] }>("/task-status-transitions"),
+    apiRequest<{ priorities: WorkflowMetadata["priorities"] }>("/task-priorities"),
+  ]);
+
+  return {
+    statuses: statusesResponse.statuses,
+    transitions: transitionsResponse.transitions,
+    priorities: prioritiesResponse.priorities,
+  };
 }

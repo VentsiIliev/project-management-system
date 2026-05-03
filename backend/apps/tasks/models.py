@@ -6,8 +6,95 @@ from django.db import models
 from .managers import ActiveTaskManager, AllTaskManager
 
 
-class TaskStatus(models.TextChoices):
-    TODO = "TODO", "TODO"
+class TaskStatusName:
+    TODO = "TODO"
+    IN_PROGRESS = "IN_PROGRESS"
+    DONE = "DONE"
+
+
+class TaskPriorityName:
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class TaskWorkflowStatus(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=64, unique=True)
+    sort_order = models.PositiveIntegerField()
+    is_final = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    color = models.CharField(max_length=32, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "task_statuses"
+        ordering = ["sort_order", "name"]
+        indexes = [
+            models.Index(fields=["sort_order"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TaskPriority(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=64, unique=True)
+    sort_order = models.PositiveIntegerField()
+    color = models.CharField(max_length=32, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "task_priorities"
+        ordering = ["sort_order", "name"]
+        indexes = [
+            models.Index(fields=["sort_order"]),
+            models.Index(fields=["is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TaskStatusTransition(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    from_status = models.ForeignKey(
+        TaskWorkflowStatus,
+        on_delete=models.RESTRICT,
+        related_name="outgoing_transitions",
+    )
+    to_status = models.ForeignKey(
+        TaskWorkflowStatus,
+        on_delete=models.RESTRICT,
+        related_name="incoming_transitions",
+    )
+    name = models.CharField(max_length=128, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "task_status_transitions"
+        ordering = ["from_status__sort_order", "to_status__sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_status", "to_status"],
+                name="unique_task_status_transition",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(from_status=models.F("to_status")),
+                name="task_status_transition_no_self_reference",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name or f"{self.from_status.name} -> {self.to_status.name}"
 
 
 class Task(models.Model):
@@ -21,7 +108,18 @@ class Task(models.Model):
     task_key = models.CharField(max_length=64, unique=True)
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=32, choices=TaskStatus.choices, default=TaskStatus.TODO)
+    status = models.ForeignKey(
+        TaskWorkflowStatus,
+        on_delete=models.RESTRICT,
+        related_name="tasks",
+    )
+    priority = models.ForeignKey(
+        TaskPriority,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+    )
     primary_assignee = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -63,6 +161,8 @@ class Task(models.Model):
         ]
         indexes = [
             models.Index(fields=["project"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["priority"]),
             models.Index(fields=["primary_assignee"]),
             models.Index(fields=["deadline"]),
             models.Index(fields=["deleted_at"]),

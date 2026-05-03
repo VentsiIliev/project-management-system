@@ -42,6 +42,8 @@
 
 5. `US-017 Create Task` depends conceptually on later catalog stories for statuses and priorities, but those data-driven catalogs are separate backlog items (`US-028` and `US-053`). The working slice for `US-017` uses a minimal app-level `TODO` status enum and no priority field yet, while keeping the API and UI scoped to first-task creation plus immediate project-scoped visibility.
 
+6. `US-053 Use Database-Driven Priorities` drifted locally into a non-MVP exclusion, but both `docs/planning/project_spec_v4-1.md` and `docs/planning/project_management_user_stories.md` require database-driven priorities in MVP. The working backlog is corrected to implement `US-053` together with `US-028` as the next task-metadata slice.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

@@ -1,58 +1,67 @@
-﻿# US-028 - Database-Driven Statuses  ## Metadata - Area: 7. Statuses and Workflow - GitHub labels: `user-story`, `mvp`, `area:workflow` - Suggested status: `Backlog` - Suggested wave: `Wave 0` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin  
+# US-028 - Database-Driven Statuses
+
+## Metadata
+
+- Area: 7. Statuses and Workflow
+- GitHub labels: `user-story`, `mvp`, `area:workflow`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 0`
+- Depends on: `US-017`
+- Parallelization note: Keep this grouped with `US-053` because both stories reshape the task metadata contract used by task create, task list, and later task update and Kanban work.
+
+## User Story
+
+**As an** Admin  
 **I want** task statuses to be database-driven  
 **So that** workflow metadata can evolve over time.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
-**Given** a status is active  
-**When** Kanban is rendered  
-**Then** the status appears as a column ordered by `sort_order`.
+**Given** MVP statuses exist in the database  
+**When** a task is created  
+**Then** the task is assigned the database-backed `TODO` status by default.
 
-**Given** a status is inactive  
-**When** Kanban is rendered  
-**Then** the column still appears and is visually marked inactive.
+**Given** the frontend requests workflow metadata  
+**When** statuses are returned  
+**Then** active and inactive statuses are included in `sort_order` order with enough metadata for future Kanban rendering.
 
-**Given** a status is inactive  
-**When** a user attempts to drop a task into that column  
-**Then** the move is rejected.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Given** an inactive status exists  
+**When** workflow metadata is requested  
+**Then** the inactive status still appears and is marked inactive instead of being dropped from the response.
+
+## Current Slice Notes
+
+- This slice establishes the database-backed status catalog and read contract only.
+- Kanban rendering belongs to `US-046`.
+- Dragging a task into a new status belongs to `US-047` and `US-026`.
+
+## Implementation Breakdown
+
+**Kanban lane:** Backlog -> Ready -> Red -> Green -> Refactor -> Review / QA -> Done  
+**Definition of Done:** The status catalog exists in the database, task create and list no longer depend on a hard-coded app enum, and the workflow metadata contract is stable enough for the later task-detail, task-update, and Kanban slices.
 
 ### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+
+- [ ] Add a `TaskWorkflowStatus` model in the owning `tasks` module.
+- [ ] Replace the current task status text field with a foreign key to the status catalog.
+- [ ] Add the status indexes required by the spec.
+- [ ] Seed MVP statuses `TODO`, `IN_PROGRESS`, and `DONE`.
+- [ ] Seed default transitions needed by later workflow stories without implementing status-change behavior yet.
 
 ### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+
+- [ ] Return structured status objects from project task list and create responses.
+- [ ] Create workflow metadata read endpoints for statuses and status transitions.
+- [ ] Keep status-write behavior deferred to `US-026`.
 
 ### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+- [ ] Stop assuming task status is only a hard-coded string name.
+- [ ] Keep the current project task panel aligned with the new task response shape.
+- [ ] Do not add Kanban UI in this slice.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+### Tests
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [ ] Add integration coverage for seeded statuses and metadata endpoints.
+- [ ] Add regression coverage showing newly created tasks default to the seeded `TODO` status.
+- [ ] Add frontend coverage for rendering status metadata returned by the API contract.
