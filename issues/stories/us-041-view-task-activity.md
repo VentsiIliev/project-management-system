@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 11. Activity Logs
 - GitHub labels: `user-story`, `mvp`, `area:activity`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: US-040, US-019
 - Parallelization note: Implement with `US-040` on the same task detail surface.

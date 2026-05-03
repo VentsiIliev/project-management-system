@@ -3,7 +3,7 @@
 ## Metadata
 - Area: `5. Task Management`
 - GitHub labels: `user-story`, `mvp`, `area:tasks`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 3`
 - Depends on: `US-017`, `US-023`
 - Parallelization note: Implement together with `US-023` and `US-061` because task deletion, subtask hierarchy, and hidden deleted-task reads share the same model, API, selector, and workspace UI surface.

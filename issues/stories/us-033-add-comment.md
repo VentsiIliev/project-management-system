@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 9. Comments and Real-Time Updates
 - GitHub labels: `user-story`, `mvp`, `area:comments`
-- Status: `implemented`
+- Status: `:owner-review`
 - Wave: `Wave 4`
 - Depends on: `US-019`, `US-001`, `US-040`
 - Grouped slice: `US-033` + `US-034` + `US-035` + `US-036` + `US-037` + `US-038` + `US-039` + `US-066` + `US-067` + `US-072`

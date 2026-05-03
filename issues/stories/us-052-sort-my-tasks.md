@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 15. My Tasks
 - GitHub labels: `user-story`, `mvp`, `area:my-tasks`
-- Status: `implemented`
+- Status: `:owner-review`
 - Wave: `Wave 5`
 - Depends on: `US-051`
 - Grouped slice: `US-045` + `US-043` + `US-044` + `US-051` + `US-052`

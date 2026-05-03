@@ -3,7 +3,7 @@
 ## Metadata
 - Area: `6. Subtasks`
 - GitHub labels: `user-story`, `mvp`, `area:subtasks`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 3`
 - Depends on: `US-017`, `US-018`, `US-069`
 - Parallelization note: Implement together with `US-022` and `US-061` because the subtask hierarchy changes the task model, task create contract, task detail response, and delete semantics in the same code path.

@@ -4,7 +4,7 @@
 
 - Area: 11. Activity Logs
 - GitHub labels: `user-story`, `mvp`, `area:activity`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: `US-009`, `US-040`
 - Parallelization note: Implement together with `US-040` because the project activity view depends on the same activity-log model and write path.

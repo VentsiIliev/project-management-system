@@ -3,7 +3,7 @@
 ## Metadata
 - Area: `19. Soft Deletion and Data Preservation`
 - GitHub labels: `user-story`, `mvp`, `area:lifecycle`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 5`
 - Depends on: `US-022`
 - Parallelization note: Keep in the same slice as `US-022` because delete behavior is only reviewable if the normal task reads stop returning the deleted rows.

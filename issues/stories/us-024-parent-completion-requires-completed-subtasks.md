@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 6. Subtasks
 - GitHub labels: `user-story`, `mvp`, `area:subtasks`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 3`
 - Depends on: US-023, US-026
 - Parallelization note: Implement together with `US-025` because both rules share the same status-change transaction and task detail response surface.

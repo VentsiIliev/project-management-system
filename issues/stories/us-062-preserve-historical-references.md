@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 19. Soft Deletion and Data Preservation
 - GitHub labels: `user-story`, `mvp`, `area:lifecycle`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 5`
 - Depends on: US-061, US-040
 - Parallelization note: Implement inside the activity-log batch so the write model stores historical snapshots from the start.

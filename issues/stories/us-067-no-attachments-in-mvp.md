@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 21. MVP Boundary Stories
 - GitHub labels: `user-story`, `mvp`, `area:mvp-boundary`
-- Status: `implemented`
+- Status: `:owner-review`
 - Wave: `Wave 6`
 - Depends on: `US-033`
 - Grouped slice: `US-033` + `US-034` + `US-035` + `US-036` + `US-037` + `US-038` + `US-039` + `US-066` + `US-067` + `US-072`

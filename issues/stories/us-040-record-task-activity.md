@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 11. Activity Logs
 - GitHub labels: `user-story`, `mvp`, `area:activity`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: US-017
 - Parallelization note: Implement together with `US-041`, `US-042`, and `US-062` because they share one activity-log write model and read contract.

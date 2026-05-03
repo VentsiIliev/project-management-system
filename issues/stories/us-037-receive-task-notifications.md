@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 10. Notifications
 - GitHub labels: `user-story`, `mvp`, `area:notifications`
-- Status: `implemented`
+- Status: `:owner-review`
 - Wave: `Wave 4`
 - Depends on: `US-017`, `US-040`
 - Grouped slice: `US-033` + `US-034` + `US-035` + `US-036` + `US-037` + `US-038` + `US-039` + `US-066` + `US-067` + `US-072`

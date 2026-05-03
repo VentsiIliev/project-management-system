@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 8. Dependencies and Blocking
 - GitHub labels: `user-story`, `mvp`, `area:dependencies`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: US-029
 - Parallelization note: Implement with the same dependency API and task detail UI as `US-029`.

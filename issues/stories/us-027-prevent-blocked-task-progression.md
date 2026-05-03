@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 7. Statuses and Workflow
 - GitHub labels: `user-story`, `mvp`, `area:workflow`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: US-026, US-029, US-031
 - Parallelization note: Implement with `US-031` because both rules depend on the same computed blocked-state check inside status transitions.

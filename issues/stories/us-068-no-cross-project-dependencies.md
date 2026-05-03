@@ -3,7 +3,7 @@
 ## Metadata
 - Area: 21. MVP Boundary Stories
 - GitHub labels: `user-story`, `mvp`, `area:mvp-boundary`
-- Status: `implemented`
+- Status: `:owner-review`
 - Suggested wave: `Wave 4`
 - Depends on: US-029
 - Parallelization note: Implement as part of the base dependency validation path, not as a separate slice.
