@@ -4,7 +4,7 @@
 
 - Area: 3. Projects
 - GitHub labels: `user-story`, `mvp`, `area:projects`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 0`
 - Depends on: `US-001`
 - Parallelization note: This slice can start once auth is in place. It should stay independent of project edit, delete, member-management, and task stories.

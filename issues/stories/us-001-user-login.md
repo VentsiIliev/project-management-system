@@ -4,7 +4,7 @@
 
 - Area: `1. Authentication and Session Management`
 - GitHub labels: `user-story`, `mvp`, `area:auth`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 0`
 - Depends on: none
 - Slice type: auth foundation

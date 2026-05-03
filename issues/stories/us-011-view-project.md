@@ -4,7 +4,7 @@
 
 - Area: 3. Projects
 - GitHub labels: `user-story`, `mvp`, `area:projects`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 2`
 - Depends on: `US-009`
 - Parallelization note: This slice can start once `US-009` is in place. It should land before project edit and delete because those stories need a real read surface.

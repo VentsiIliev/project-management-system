@@ -4,7 +4,7 @@
 
 - Area: 2. Admin User Management
 - GitHub labels: `user-story`, `mvp`, `area:admin`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 1`
 - Depends on: `US-005`
 - Parallelization note: Start after `US-005`; this story reuses the existing admin user update API from `US-006` and should not invent a second deactivation transport path.

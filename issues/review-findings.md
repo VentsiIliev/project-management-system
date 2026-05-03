@@ -44,6 +44,8 @@
 
 6. `US-053 Use Database-Driven Priorities` drifted locally into a non-MVP exclusion, but both `docs/planning/project_spec_v4-1.md` and `docs/planning/project_management_user_stories.md` require database-driven priorities in MVP. The working backlog is corrected to implement `US-053` together with `US-028` as the next task-metadata slice.
 
+7. `US-018 Atomic Task Numbering` and `US-069 Enforce Task-Project Ownership` were both carrying copy-pasted implementation breakdowns unrelated to their actual acceptance criteria. The working backlog is corrected to treat them as a narrow task-persistence invariant slice over the existing task-create path, with concurrency and ownership regression coverage instead of unrelated future task features.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

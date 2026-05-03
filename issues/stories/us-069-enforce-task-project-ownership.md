@@ -1,48 +1,55 @@
-﻿# US-069 - Enforce Task-Project Ownership  ## Metadata - Area: 22. Key Invariant Coverage - GitHub labels: `user-story`, `mvp`, `area:invariants` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** system  
+# US-069 - Enforce Task-Project Ownership
+
+## Metadata
+
+- Area: 22. Key Invariant Coverage
+- GitHub labels: `user-story`, `mvp`, `area:invariants`
+- Suggested status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-017`
+- Parallelization note: Implement with `US-018`. Both stories validate the same task persistence boundary and should stay in one review slice.
+
+## User Story
+
+**As a** system  
 **I want** every task to belong to exactly one project  
 **So that** authorization, search, and task numbering remain consistent.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** a task is created  
 **When** it is persisted  
-**Then** it must have exactly one project.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** it must have exactly one project.
 
-### Database
-- [ ] Create/maintain task dependency table with unique pair and no-self check.
-- [ ] Add indexes for dependency and reverse-dependency lookup.
+## Current Slice Notes
 
-### Backend/API
-- [ ] Implement dependency add/remove/list service inside a transaction.
-- [ ] Validate same-project dependencies, no duplicates, no self-dependency, and acyclic graph.
-- [ ] Compute blocked state from non-final dependency statuses; never store BLOCKED as a status.
-- [ ] Block invalid status changes when dependencies are unresolved.
+- The data model already enforced the core ownership rule with a required `Task.project` foreign key.
+- The slice for this story is to prove that invariant explicitly and keep the test aligned with the current database-backed status model.
+- Do not pull dependency-graph or blocked-state behavior into this story; those belong to later task-dependency stories.
 
-### Frontend/UI
-- [ ] Show blocked indicators on task detail, Kanban, Gantt, and My Tasks.
-- [ ] Disable/rollback UI actions that violate dependency rules.
-- [ ] Display structured dependency errors and Gantt conflict warnings.
+## Execution Breakdown
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test same-project, duplicate, self, and circular dependency rejection.
-- [ ] Integration test blocked status transition behavior and dependency race conditions.
+### Persistence Invariant
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+- [x] Keep `Task.project` as a required foreign key with no nullable ownership path.
+- [x] Keep project-scoped task numbering tied to that required ownership relation.
+- [x] Reuse the existing task-create path instead of adding a second persistence entry point.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
+### Test Slice
 
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+- [x] Add explicit regression coverage proving a task cannot be persisted without a project.
+- [x] Keep the test independent of migration seeding by creating or reusing the required workflow status row inside the test setup.
+- [x] Assert API-created tasks also persist the expected `project_id` so the transport layer stays aligned with the model invariant.
+
+## Implementation Result
+
+- `apps/tasks/models.py` already enforced exactly-one-project ownership through a non-null `project` foreign key and per-project numbering constraints.
+- `backend/tests/integration/test_tasks_api.py` now asserts:
+  - direct task persistence without a project fails with `IntegrityError`
+  - normal API-backed task creation persists the created task against the requested project
+
+## Definition Of Done
+
+- The task model does not allow a task without a project.
+- The ownership invariant is covered by automated regression tests at both direct persistence and API-backed creation paths.
+- The local story reflects the actual invariant scope instead of the copied dependency-management breakdown.

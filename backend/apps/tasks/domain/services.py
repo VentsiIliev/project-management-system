@@ -1,5 +1,7 @@
+import time
+
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import OperationalError, transaction
 
 from apps.memberships.models import ProjectMembership
 from apps.projects.models import Project
@@ -62,7 +64,7 @@ def get_default_task_status() -> TaskWorkflowStatus:
 
 
 @transaction.atomic
-def create_task(
+def _create_task_once(
     *,
     actor,
     project_id,
@@ -141,3 +143,33 @@ def create_task(
         deadline=deadline,
     )
     return task
+
+
+def create_task(
+    *,
+    actor,
+    project_id,
+    title: str,
+    description: str | None = None,
+    priority_id=None,
+    start_date=None,
+    deadline=None,
+    primary_assignee_id=None,
+):
+    for attempt in range(3):
+        try:
+            return _create_task_once(
+                actor=actor,
+                project_id=project_id,
+                title=title,
+                description=description,
+                priority_id=priority_id,
+                start_date=start_date,
+                deadline=deadline,
+                primary_assignee_id=primary_assignee_id,
+            )
+        except OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 2:
+                raise
+
+            time.sleep(0.05)

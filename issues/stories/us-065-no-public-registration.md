@@ -4,7 +4,7 @@
 
 - Area: 21. MVP Boundary Stories
 - GitHub labels: `user-story`, `mvp`, `area:mvp-boundary`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 1`
 - Depends on: `US-001`
 - Parallelization note: This is a small boundary-enforcement slice on top of the auth shell.

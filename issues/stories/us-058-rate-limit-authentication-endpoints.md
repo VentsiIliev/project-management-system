@@ -4,7 +4,7 @@
 
 - Area: 17. Authorization and Security
 - GitHub labels: `user-story`, `mvp`, `area:security`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 1`
 - Depends on: `US-001`
 - Parallelization note: This slice can build directly on the auth foundation and the CSRF hardening work from `US-057`.

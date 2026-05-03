@@ -4,7 +4,7 @@
 
 - Area: 2. Admin User Management
 - GitHub labels: `user-story`, `mvp`, `area:admin`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 1`
 - Depends on: `US-005`
 - Parallelization note: Start after `US-005` because this story extends the same admin user API surface.
