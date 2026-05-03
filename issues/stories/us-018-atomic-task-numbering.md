@@ -4,7 +4,7 @@
 
 - Area: 5. Task Management
 - GitHub labels: `user-story`, `mvp`, `area:tasks`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 3`
 - Depends on: `US-017`
 - Parallelization note: Pull this forward only once task creation exists. It shares the same persistence path as `US-069`, so implement and review them together as one invariant slice.

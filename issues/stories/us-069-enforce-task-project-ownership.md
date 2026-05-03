@@ -4,7 +4,7 @@
 
 - Area: 22. Key Invariant Coverage
 - GitHub labels: `user-story`, `mvp`, `area:invariants`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 3`
 - Depends on: `US-017`
 - Parallelization note: Implement with `US-018`. Both stories validate the same task persistence boundary and should stay in one review slice.

@@ -4,7 +4,7 @@
 
 - Area: 17. Authorization and Security
 - GitHub labels: `user-story`, `mvp`, `area:security`
-- Suggested status: `implemented`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 0`
 - Depends on: `US-001`
 - Parallelization note: This should be the last Wave 0 cleanup slice before deeper task work. Size it as an authorization audit over the currently implemented endpoint surface, not as a rewrite of future modules.
