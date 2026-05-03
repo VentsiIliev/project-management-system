@@ -4,7 +4,7 @@
 
 - Area: 3. Projects
 - GitHub labels: `user-story`, `mvp`, `area:projects`
-- Suggested status: `Owner Review`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 2`
 - Depends on: `US-009`, `US-011`
 - Reviewable slice: backend project delete contract, frontend confirmation flow, and project visibility regression coverage

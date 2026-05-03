@@ -266,6 +266,122 @@ def test_team_members_cannot_create_projects():
             "details": {},
         }
     }
+
+
+def test_project_endpoints_require_authentication():
+    owner = create_user(
+        email="project-auth-required-owner@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="project-auth-required-target@example.com")
+    project = create_project(owner=owner, code="AUT", name="Auth Required")
+    create_membership(
+        project=project,
+        user=target_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    client = APIClient()
+
+    list_response = client.get("/api/projects")
+    create_response = client.post(
+        "/api/projects",
+        {"name": "Denied", "code": "DEN"},
+        format="json",
+    )
+    detail_response = client.get(f"/api/projects/{project.id}")
+    update_response = client.patch(
+        f"/api/projects/{project.id}",
+        {"name": "Denied Update"},
+        format="json",
+    )
+    delete_response = client.delete(
+        f"/api/projects/{project.id}",
+        {"confirm_project_delete": True},
+        format="json",
+    )
+    members_response = client.get(f"/api/projects/{project.id}/members")
+    add_member_response = client.post(
+        f"/api/projects/{project.id}/members",
+        {"user_id": str(target_user.id), "role": "TEAM_MEMBER"},
+        format="json",
+    )
+
+    responses = [
+        list_response,
+        create_response,
+        detail_response,
+        update_response,
+        delete_response,
+        members_response,
+        add_member_response,
+    ]
+    for response in responses:
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_inactive_user_cannot_access_project_endpoints():
+    inactive_user = create_user(
+        email="inactive-project-user@example.com",
+        is_active=False,
+        must_reset_password=False,
+    )
+    owner = create_user(
+        email="inactive-project-owner@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="inactive-project-target@example.com")
+    project = create_project(owner=owner, code="INA", name="Inactive Project Access")
+    client = APIClient()
+    client.force_login(inactive_user)
+
+    list_response = client.get("/api/projects")
+    detail_response = client.get(f"/api/projects/{project.id}")
+    task_create_response = client.post(
+        f"/api/projects/{project.id}/members",
+        {"user_id": str(target_user.id), "role": "TEAM_MEMBER"},
+        format="json",
+    )
+
+    assert list_response.status_code == 403
+    assert list_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert detail_response.status_code == 403
+    assert detail_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert task_create_response.status_code == 403
+    assert task_create_response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_reset_required_user_cannot_access_project_endpoints():
+    reset_required_user = create_user(
+        email="reset-project-user@example.com",
+        must_reset_password=True,
+    )
+    owner = create_user(
+        email="reset-project-owner@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    target_user = create_user(email="reset-project-target@example.com")
+    project = create_project(owner=owner, code="RST", name="Reset Project Access")
+    client = APIClient()
+    client.force_login(reset_required_user)
+
+    list_response = client.get("/api/projects")
+    detail_response = client.get(f"/api/projects/{project.id}")
+    task_create_response = client.post(
+        f"/api/projects/{project.id}/members",
+        {"user_id": str(target_user.id), "role": "TEAM_MEMBER"},
+        format="json",
+    )
+
+    assert list_response.status_code == 403
+    assert list_response.json() == {"detail": "Password reset required."}
+    assert detail_response.status_code == 403
+    assert detail_response.json() == {"detail": "Password reset required."}
+    assert task_create_response.status_code == 403
+    assert task_create_response.json() == {"detail": "Password reset required."}
     assert Project.all_objects.filter(code="BLK").exists() is False
 
 

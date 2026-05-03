@@ -1,9 +1,14 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, close_old_connections
 from rest_framework.test import APIClient
 
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
+from apps.tasks.domain.services import create_task as create_task_service
 from apps.tasks.models import (
     Task,
     TaskPriority,
@@ -45,7 +50,15 @@ def create_membership(*, project, user, role):
 
 
 def get_status(name: str) -> TaskWorkflowStatus:
-    return TaskWorkflowStatus.objects.get(name=name)
+    status, _ = TaskWorkflowStatus.objects.get_or_create(
+        name=name,
+        defaults={
+            "sort_order": 1,
+            "is_final": name == TaskStatusName.DONE,
+            "is_active": True,
+        },
+    )
+    return status
 
 
 def get_priority(name: str) -> TaskPriority:
@@ -97,6 +110,63 @@ def create_task(
         primary_assignee=assignee,
         created_by=created_by,
     )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_task_numbers_are_generated_atomically_per_project():
+    admin_user = create_user(
+        email="task-atomic-admin@example.com",
+        is_admin=True,
+    )
+    project = create_project(owner=admin_user, code="ATM", name="Atomic Numbering")
+    start_barrier = Barrier(2)
+
+    def create_concurrent_task(title: str):
+        close_old_connections()
+        start_barrier.wait()
+        task = create_task_service(
+            actor=admin_user,
+            project_id=project.id,
+            title=title,
+        )
+        close_old_connections()
+        return task.task_number, task.task_key
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        left = executor.submit(create_concurrent_task, "Concurrent Task A")
+        right = executor.submit(create_concurrent_task, "Concurrent Task B")
+        created = [left.result(), right.result()]
+
+    project.refresh_from_db()
+    persisted_numbers = list(
+        Task.objects.filter(project=project).order_by("task_number").values_list("task_number", flat=True)
+    )
+    persisted_keys = list(
+        Task.objects.filter(project=project).order_by("task_number").values_list("task_key", flat=True)
+    )
+
+    assert sorted(number for number, _ in created) == [1, 2]
+    assert persisted_numbers == [1, 2]
+    assert persisted_keys == ["ATM-1", "ATM-2"]
+    assert project.task_counter == 2
+
+
+@pytest.mark.django_db(transaction=True)
+def test_task_requires_exactly_one_project():
+    admin_user = create_user(
+        email="task-project-required-admin@example.com",
+        is_admin=True,
+    )
+    status = get_status(TaskStatusName.TODO)
+
+    with pytest.raises(IntegrityError):
+        Task.all_objects.create(
+            task_number=1,
+            task_key="NOPROJECT-1",
+            title="Missing project",
+            status=status,
+            created_by=admin_user,
+        )
 
 
 def test_visible_project_member_can_list_project_tasks():
@@ -167,6 +237,94 @@ def test_non_member_cannot_list_project_tasks():
     }
 
 
+def test_task_endpoints_require_authentication():
+    admin_user = create_user(
+        email="task-auth-required-admin@example.com",
+        is_admin=True,
+    )
+    project = create_project(owner=admin_user, code="TAR", name="Task Auth Required")
+    client = APIClient()
+
+    list_response = client.get(f"/api/projects/{project.id}/tasks")
+    create_response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {"title": "Denied"},
+        format="json",
+    )
+    statuses_response = client.get("/api/task-statuses")
+    transitions_response = client.get("/api/task-status-transitions")
+    priorities_response = client.get("/api/task-priorities")
+
+    for response in [
+        list_response,
+        create_response,
+        statuses_response,
+        transitions_response,
+        priorities_response,
+    ]:
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_inactive_user_cannot_access_task_endpoints():
+    inactive_user = create_user(
+        email="inactive-task-user@example.com",
+        is_active=False,
+        must_reset_password=False,
+    )
+    admin_user = create_user(
+        email="inactive-task-owner@example.com",
+        is_admin=True,
+    )
+    project = create_project(owner=admin_user, code="ITA", name="Inactive Task Access")
+    client = APIClient()
+    client.force_login(inactive_user)
+
+    list_response = client.get(f"/api/projects/{project.id}/tasks")
+    create_response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {"title": "Denied"},
+        format="json",
+    )
+    metadata_response = client.get("/api/task-statuses")
+
+    assert list_response.status_code == 403
+    assert list_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert create_response.status_code == 403
+    assert create_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert metadata_response.status_code == 403
+    assert metadata_response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_reset_required_user_cannot_access_task_endpoints():
+    reset_required_user = create_user(
+        email="reset-task-user@example.com",
+        must_reset_password=True,
+    )
+    admin_user = create_user(
+        email="reset-task-owner@example.com",
+        is_admin=True,
+    )
+    project = create_project(owner=admin_user, code="RTA", name="Reset Task Access")
+    client = APIClient()
+    client.force_login(reset_required_user)
+
+    list_response = client.get(f"/api/projects/{project.id}/tasks")
+    create_response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {"title": "Denied"},
+        format="json",
+    )
+    metadata_response = client.get("/api/task-priorities")
+
+    assert list_response.status_code == 403
+    assert list_response.json() == {"detail": "Password reset required."}
+    assert create_response.status_code == 403
+    assert create_response.json() == {"detail": "Password reset required."}
+    assert metadata_response.status_code == 403
+    assert metadata_response.json() == {"detail": "Password reset required."}
+
+
 def test_admin_can_create_a_task_with_default_todo_status_and_priority():
     admin_user = create_user(
         email="task-create-admin@example.com",
@@ -222,6 +380,7 @@ def test_admin_can_create_a_task_with_default_todo_status_and_priority():
     assert task.priority_id == high_priority.id
     assert task.task_key == "ENG-1"
     assert project.task_counter == 1
+    assert task.project_id == project.id
 
 
 def test_project_manager_can_create_a_task():

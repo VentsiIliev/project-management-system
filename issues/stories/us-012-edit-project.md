@@ -4,7 +4,7 @@
 
 - Area: 3. Projects
 - GitHub labels: `user-story`, `mvp`, `area:projects`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 2`
 - Depends on: `US-009`, `US-011`
 - Parallelization note: This slice should follow `US-011` because it builds directly on the new project detail route and read contract.

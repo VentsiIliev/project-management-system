@@ -4,7 +4,7 @@
 
 - Area: 4. Project Memberships and Roles
 - GitHub labels: `user-story`, `mvp`, `area:memberships`
-- Suggested status: `Owner Review`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 2`
 - Depends on: `US-014`
 - Reviewable slice: grouped with `US-015` because both extend the same membership contract and members panel

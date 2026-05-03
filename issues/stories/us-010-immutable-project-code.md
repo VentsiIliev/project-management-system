@@ -4,7 +4,7 @@
 
 - Area: 3. Projects
 - GitHub labels: `user-story`, `mvp`, `area:projects`
-- Suggested status: `Ready`
+- Suggested status: `:owner-review`
 - Suggested wave: `Wave 2`
 - Depends on: `US-009`
 - Parallelization note: Deliver this invariant on the same branch as `US-012`, because the PATCH surface is the first meaningful place to enforce it.

@@ -716,6 +716,115 @@ def test_create_user_denies_non_admin_users():
     assert response.json() == {"detail": "Admin access required."}
 
 
+def test_admin_user_endpoints_require_authentication():
+    managed_user = create_user(email="auth-required-admin-target@example.com")
+    client = APIClient()
+
+    create_response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Denied User",
+            "email": "denied-auth@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+    )
+    update_response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"name": "Denied Update"},
+        format="json",
+    )
+    reset_response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert create_response.status_code == 403
+    assert create_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert update_response.status_code == 403
+    assert update_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert reset_response.status_code == 403
+    assert reset_response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_inactive_admin_cannot_access_admin_user_endpoints():
+    inactive_admin = create_user(
+        email="inactive-admin@example.com",
+        is_admin=True,
+        is_active=False,
+        must_reset_password=False,
+    )
+    managed_user = create_user(email="inactive-admin-target@example.com")
+    client = APIClient()
+    client.force_login(inactive_admin)
+
+    create_response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Denied User",
+            "email": "inactive-denied@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+    )
+    update_response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"name": "Denied Update"},
+        format="json",
+    )
+    reset_response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert create_response.status_code == 403
+    assert create_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert update_response.status_code == 403
+    assert update_response.json() == {"detail": "Authentication credentials were not provided."}
+    assert reset_response.status_code == 403
+    assert reset_response.json() == {"detail": "Authentication credentials were not provided."}
+
+
+def test_reset_required_admin_cannot_access_admin_user_endpoints():
+    reset_required_admin = create_user(
+        email="reset-required-admin@example.com",
+        is_admin=True,
+        must_reset_password=True,
+    )
+    managed_user = create_user(email="reset-required-admin-target@example.com")
+    client = APIClient()
+    client.force_login(reset_required_admin)
+
+    create_response = client.post(
+        "/api/admin/users",
+        {
+            "name": "Denied User",
+            "email": "reset-denied@example.com",
+            "temporary_password": "TempPassword123!",
+        },
+        format="json",
+    )
+    update_response = client.patch(
+        f"/api/admin/users/{managed_user.id}",
+        {"name": "Denied Update"},
+        format="json",
+    )
+    reset_response = client.post(
+        f"/api/admin/users/{managed_user.id}/reset-password",
+        {"new_temporary_password": "TempPassword456!"},
+        format="json",
+    )
+
+    assert create_response.status_code == 403
+    assert create_response.json() == {"detail": "Password reset required."}
+    assert update_response.status_code == 403
+    assert update_response.json() == {"detail": "Password reset required."}
+    assert reset_response.status_code == 403
+    assert reset_response.json() == {"detail": "Password reset required."}
+
+
 def test_create_user_validates_the_temporary_password_against_the_password_policy():
     admin_user = create_user(
         email="admin.password@example.com",
