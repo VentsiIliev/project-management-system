@@ -225,3 +225,39 @@ class TaskCollaborator(models.Model):
 
     def __str__(self) -> str:
         return f"{self.task_id}:{self.user_id}"
+
+
+class TaskDependency(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="dependency_links",
+    )
+    depends_on_task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="reverse_dependency_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "task_dependencies"
+        ordering = ["task_id", "depends_on_task_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task", "depends_on_task"],
+                name="unique_task_dependency",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(task=models.F("depends_on_task")),
+                name="task_dependency_no_self_reference",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["task"]),
+            models.Index(fields=["depends_on_task"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.task_id}->{self.depends_on_task_id}"

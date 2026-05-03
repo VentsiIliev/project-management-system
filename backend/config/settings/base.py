@@ -34,6 +34,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "channels",
     "apps.core",
+    "apps.activity_logs",
+    "apps.comments",
+    "apps.notifications",
     "apps.projects",
     "apps.memberships",
     "apps.tasks",
@@ -54,6 +57,21 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
+
+redis_url = os.getenv("REDIS_URL")
+if redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [redis_url]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 TEMPLATES = [
     {

@@ -53,6 +53,9 @@
 10. `US-060 Handle Loading, Empty, and Error States` is not a coherent standalone feature story in its current local form. It should be treated as a cross-slice frontend definition-of-done rule, starting with the next task-detail and task-edit workspace work.
 
 11. `US-022`, `US-023`, and `US-061` were still broad placeholders after the task-detail slice, but their real shared implementation surface is the task hierarchy and deletion contract. The working backlog is corrected to treat them as one reviewable subtask and task-lifecycle slice.
+12. `US-025` still requires a `PARENT_REOPENED` activity-log entry, but task activity is not implemented yet. The working backlog is corrected to implement the parent-reopen invariant now and defer the activity-log side effect to `US-040` and `US-041`.
+13. `US-029`, `US-030`, `US-031`, `US-032`, `US-027`, and `US-068` were still placeholder-heavy and split across one backend/API surface. The working backlog is corrected to treat them as one dependency and blocked-state execution group.
+14. `US-040`, `US-041`, `US-042`, and `US-062` share one activity-log write/read contract even though the local files treated them as separate later slices. The working backlog is corrected to implement them together so historical-reference preservation is designed into the activity model instead of retrofitted afterward.
 
 ## What Was Added
 

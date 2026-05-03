@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.tasks.domain.services import is_task_blocked
 from apps.tasks.models import Task
 
 
@@ -59,6 +60,38 @@ class DeleteTaskSerializer(serializers.Serializer):
     confirm_cascade_subtasks = serializers.BooleanField(required=False, default=False)
 
 
+class AddTaskDependencySerializer(serializers.Serializer):
+    depends_on_task_id = serializers.UUIDField()
+
+
+class TaskListQuerySerializer(serializers.Serializer):
+    search = serializers.CharField(required=False, allow_blank=False, trim_whitespace=True)
+    status_id = serializers.UUIDField(required=False)
+    priority_id = serializers.UUIDField(required=False)
+    assignee_id = serializers.UUIDField(required=False)
+    deadline_from = serializers.DateField(required=False)
+    deadline_to = serializers.DateField(required=False)
+    is_blocked = serializers.BooleanField(required=False)
+    page = serializers.IntegerField(required=False, min_value=1, default=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=100, default=10)
+
+    def validate(self, attrs):
+        deadline_from = attrs.get("deadline_from")
+        deadline_to = attrs.get("deadline_to")
+        if deadline_from and deadline_to and deadline_to < deadline_from:
+            raise serializers.ValidationError(
+                {"deadline_to": ["Deadline end cannot be earlier than deadline start."]}
+            )
+        return attrs
+
+
+class MyTaskListQuerySerializer(serializers.Serializer):
+    include_collaborator_tasks = serializers.BooleanField(required=False, default=False)
+    sort_by = serializers.ChoiceField(required=False, choices=["deadline", "priority"], default="deadline")
+    page = serializers.IntegerField(required=False, min_value=1, default=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=100, default=10)
+
+
 class TaskStatusSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     name = serializers.CharField()
@@ -87,6 +120,31 @@ class TaskStatusTransitionSerializer(serializers.Serializer):
 class TaskAssigneeSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     name = serializers.CharField()
+
+
+class TaskDependencySummarySerializer(serializers.Serializer):
+    id = serializers.UUIDField(format="hex_verbose")
+    task_key = serializers.CharField()
+    title = serializers.CharField()
+    parent_task_id = serializers.UUIDField(format="hex_verbose", allow_null=True)
+    status = serializers.SerializerMethodField()
+    is_blocked = serializers.SerializerMethodField()
+
+    def get_status(self, obj: Task):
+        status = obj.status
+        return TaskStatusSerializer(
+            {
+                "id": status.id,
+                "name": status.name,
+                "sort_order": status.sort_order,
+                "is_final": status.is_final,
+                "is_active": status.is_active,
+                "color": status.color,
+            }
+        ).data
+
+    def get_is_blocked(self, obj: Task):
+        return is_task_blocked(obj)
 
 
 class TaskSerializer(serializers.Serializer):
@@ -156,7 +214,7 @@ class TaskSerializer(serializers.Serializer):
         ).data
 
     def get_is_blocked(self, obj: Task):
-        return False
+        return is_task_blocked(obj)
 
     def get_is_overdue(self, obj: Task):
         if obj.deadline is None or obj.status.is_final:
@@ -176,4 +234,13 @@ class TaskSerializer(serializers.Serializer):
         return TaskSerializer(subtasks, many=True).data
 
     def get_dependencies(self, obj: Task):
-        return []
+        dependency_links = getattr(obj, "_prefetched_objects_cache", {}).get("dependency_links")
+        if dependency_links is None:
+            dependency_links = (
+                obj.dependency_links.filter(depends_on_task__deleted_at__isnull=True)
+                .select_related("depends_on_task", "depends_on_task__status")
+                .order_by("depends_on_task__task_number")
+            )
+
+        dependencies = [link.depends_on_task for link in dependency_links]
+        return TaskDependencySummarySerializer(dependencies, many=True).data

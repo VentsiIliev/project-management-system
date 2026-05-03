@@ -1,43 +1,21 @@
-﻿# US-067 - No Attachments in MVP  ## Metadata - Area: 21. MVP Boundary Stories - GitHub labels: `user-story`, `mvp`, `area:mvp-boundary` - Suggested status: `Backlog` - Suggested wave: `Wave 6` - Depends on: US-033 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** product owner  
-**I want** file attachments excluded from MVP  
-**So that** task scope remains focused.
+# US-067 - No Attachments in MVP
 
-### Acceptance Criteria
+## Metadata
+- Area: 21. MVP Boundary Stories
+- GitHub labels: `user-story`, `mvp`, `area:mvp-boundary`
+- Status: `implemented`
+- Wave: `Wave 6`
+- Depends on: `US-033`
+- Grouped slice: `US-033` + `US-034` + `US-035` + `US-036` + `US-037` + `US-038` + `US-039` + `US-066` + `US-067` + `US-072`
 
-**Given** a user views or edits a task  
-**When** they look for attachment functionality  
-**Then** no attachment feature is available.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+## Scope
+- Keep the comment feature text-only in MVP.
+- Do not add attachment upload, storage, or rendering paths.
 
-### Database
-- [ ] Confirm no schema is added for explicitly non-MVP capability.
+## Acceptance
+- Comments support text content only.
+- No attachment UI or backend API is exposed.
 
-### Backend/API
-- [ ] Reject or omit endpoints for non-goal capability.
-- [ ] Document future-scope decision in code/API docs where useful.
-
-### Frontend/UI
-- [ ] Do not expose UI entry points for non-MVP capability.
-- [ ] Show no misleading controls for unsupported features.
-
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Regression test unsupported capability is not available in MVP.
-
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Delivered
+- Comment payloads remain text-only
+- No attachment fields, endpoints, or task-detail attachment UI were added

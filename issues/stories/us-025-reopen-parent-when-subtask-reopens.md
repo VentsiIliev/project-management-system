@@ -1,55 +1,46 @@
-﻿# US-025 - Reopen Parent When Subtask Reopens  ## Metadata - Area: 6. Subtasks - GitHub labels: `user-story`, `mvp`, `area:subtasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-023, US-026 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** system  
-**I want** to reopen a completed parent task when a subtask is reopened  
+# US-025 - Reopen Parent When Subtask Reopens
+
+## Metadata
+- Area: 6. Subtasks
+- GitHub labels: `user-story`, `mvp`, `area:subtasks`
+- Status: `implemented`
+- Suggested wave: `Wave 3`
+- Depends on: US-023, US-026
+- Parallelization note: Implement together with `US-024` because both rules belong to the same status transition path.
+
+## User Story
+**As a** system
+**I want** to reopen a completed parent task when a subtask is reopened
 **So that** task status remains consistent.
 
 ### Acceptance Criteria
 
-**Given** a parent task is DONE  
-**And** one of its subtasks is DONE  
-**When** the subtask is changed to a non-final status  
+**Given** a parent task is DONE
+**And** one of its subtasks is DONE
+**When** the subtask is changed to a non-final status
 **Then** the system automatically reopens the parent task.
 
-**Given** the parent is reopened automatically  
-**When** the action is completed  
-**Then** the system records a `PARENT_REOPENED` activity log entry.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Given** the parent is reopened automatically
+**When** the action is completed
+**Then** the system records a `PARENT_REOPENED` activity log entry.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [ ] Reopen a DONE parent inside the same status-change transaction when a child moves from final to non-final.
+- [ ] Keep the returned task detail payload consistent for both the changed subtask and the reopened parent task list read model.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [ ] Refresh the task detail and project task list cache so the reopened parent state is visible immediately.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Tests
+- [ ] Add integration coverage for automatic parent reopen after a subtask leaves a final state.
+- [ ] Add regression coverage showing no reopen happens when the parent is already non-final.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+## Dependencies And Follow-Up
+- The `PARENT_REOPENED` activity-log requirement is deferred to `US-040` and `US-041`.
+- Record that backlog drift in `issues/review-findings.md` instead of inventing partial audit behavior here.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Definition Of Done
+- A subtask moving from final to non-final reopens a DONE parent automatically.
+- The task status endpoint and workspace queries reflect the reopened parent without manual refresh sequencing bugs.

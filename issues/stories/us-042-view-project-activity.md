@@ -4,10 +4,10 @@
 
 - Area: 11. Activity Logs
 - GitHub labels: `user-story`, `mvp`, `area:activity`
-- Suggested status: `Blocked`
-- Suggested wave: `Wave 2`
+- Status: `implemented`
+- Suggested wave: `Wave 4`
 - Depends on: `US-009`, `US-040`
-- Parallelization note: Do not start this story before `US-040` exists. The project activity view is a read surface over project activity data, not the story that invents project activity logging.
+- Parallelization note: Implement together with `US-040` because the project activity view depends on the same activity-log model and write path.
 
 ## User Story
 
@@ -25,17 +25,12 @@
 **When** I attempt to open project activity  
 **Then** the system hides the project activity surface.
 
-## Blocker
-
-- `US-040` is not implemented yet, so there is no owned activity-log write model to read from.
-- This story must remain blocked until the activity-recording contract exists.
-
 ## Current Slice Notes
 
 - The previous local breakdown was copied from project CRUD and did not describe the real activity-read work.
-- When unblocked, this story should build on the existing project detail route and visible-project permissions rather than creating a second project-access model.
+- This story should build on the existing project detail route and visible-project permissions rather than creating a second project-access model.
 
-## Intended Execution Breakdown Once Unblocked
+## Execution Breakdown
 
 ### Backend Slice
 
@@ -57,7 +52,7 @@
 - [ ] Add backend integration coverage showing non-members and removed members cannot read project activity.
 - [ ] Add frontend coverage for loading and rendering project activity in the existing project workspace.
 
-## Definition Of Done Once Unblocked
+## Definition Of Done
 
 - Project activity can be viewed for accessible projects.
 - Inaccessible projects do not expose project activity.

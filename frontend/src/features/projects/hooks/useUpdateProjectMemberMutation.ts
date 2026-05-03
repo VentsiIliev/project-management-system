@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { updateProjectMember } from "../api/projectsApi";
 import { type ProjectMember, type ProjectMemberRole } from "../types";
+import { projectActivityQueryKey } from "./useProjectActivityQuery";
 import { projectQueryKey } from "./useProjectQuery";
 import { projectMembersQueryKey } from "./useProjectMembersQuery";
 
@@ -34,10 +35,16 @@ export function useUpdateProjectMemberMutation(projectId: string | null) {
           ),
       );
 
-      await queryClient.invalidateQueries({
-        queryKey: projectQueryKey(projectId),
-        exact: true,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: projectQueryKey(projectId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: projectActivityQueryKey(projectId),
+          exact: true,
+        }),
+      ]);
     },
   });
 }

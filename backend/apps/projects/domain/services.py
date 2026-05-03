@@ -1,6 +1,8 @@
 from django.db import transaction
 from django.utils import timezone
 
+from apps.activity_logs.models import ActivityLogEvent
+from apps.activity_logs.services import record_activity
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
 from apps.projects.selectors import visible_projects_for_user
@@ -101,6 +103,13 @@ def delete_project(*, actor, project_id):
 
     if not can_delete_project(user=actor, project=project):
         raise ProjectDeletePermissionDeniedError
+
+    record_activity(
+        event_type=ActivityLogEvent.PROJECT_DELETED,
+        actor=actor,
+        project=project,
+        metadata={"project_code": project.code, "project_name": project.name},
+    )
 
     deleted_at = timezone.now()
     ProjectMembership.all_objects.filter(

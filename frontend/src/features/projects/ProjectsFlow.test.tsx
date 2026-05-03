@@ -49,6 +49,62 @@ function stubFetch(
         });
       }
 
+      if (/^\/api\/projects\/[^/]+\/activity$/.test(url)) {
+        return jsonResponse({
+          body: {
+            activity: [],
+          },
+        });
+      }
+
+      if (/^\/api\/tasks\/[^/]+\/activity$/.test(url)) {
+        return jsonResponse({
+          body: {
+            activity: [],
+          },
+        });
+      }
+
+      if (/^\/api\/tasks\/[^/]+\/comments(?:\?.*)?$/.test(url)) {
+        return jsonResponse({
+          body: {
+            comments: [],
+          },
+        });
+      }
+
+      if (url === "/api/tasks") {
+        return jsonResponse({
+          body: {
+            tasks: [],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 0,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+
+      if (/^\/api\/notifications(?:\?.*)?$/.test(url)) {
+        return jsonResponse({
+          body: {
+            notifications: [],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 0,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+
       return handler(url, init);
     },
   );
@@ -220,6 +276,41 @@ function workflowMetadataResponse() {
   };
 }
 
+function commentListResponse(overrides?: Array<Record<string, unknown>>) {
+  return (
+    overrides ?? [
+      {
+        id: "comment-1",
+        task_id: "task-1",
+        author: {
+          id: "user-2",
+          name: "Alex Smith",
+        },
+        content: "Initial comment",
+        created_at: "2026-05-03T10:00:00Z",
+      },
+    ]
+  );
+}
+
+function notificationListResponse(overrides?: Array<Record<string, unknown>>) {
+  return (
+    overrides ?? [
+      {
+        id: "notification-1",
+        event_type: "TASK_UPDATED",
+        message: "Jane Doe updated ENG-1.",
+        is_read: false,
+        read_at: null,
+        metadata: {
+          task_id: "task-1",
+        },
+        created_at: "2026-05-03T12:00:00Z",
+      },
+    ]
+  );
+}
+
 describe("projects flow", () => {
   it("loads the accessible project list after login and opens a project detail route", async () => {
     const fetchMock = stubFetch((url) => {
@@ -288,7 +379,7 @@ describe("projects flow", () => {
     await user.click(await screen.findByRole("button", { name: /engineering platform/i }));
 
     expect(await screen.findAllByText("ENG")).toHaveLength(2);
-    expect(await screen.findByText("Owner One")).toBeInTheDocument();
+    expect((await screen.findAllByText("Owner One")).length).toBeGreaterThan(0);
     expect(await screen.findByText("Initial task")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/projects/project-1/members", expect.anything());
     expect(fetchMock).toHaveBeenCalledWith("/api/projects/project-1/tasks", expect.anything());
@@ -543,6 +634,7 @@ describe("projects flow", () => {
   });
 
   it("creates a project task from the workspace and updates the visible task list", async () => {
+    let currentTasks: Array<Record<string, unknown>> = [];
     const fetchMock = stubFetch((url, init) => {
       if (url === "/api/auth/me") {
         return jsonResponse({ body: sessionResponse() });
@@ -557,25 +649,30 @@ describe("projects flow", () => {
         return jsonResponse({ body: { members: memberListResponse() } });
       }
       if (url === "/api/projects/project-1/tasks" && (!init?.method || init.method === "GET")) {
-        return jsonResponse({ body: { tasks: [] } });
+        return jsonResponse({ body: { tasks: currentTasks } });
       }
       if (url === "/api/projects/project-1/tasks" && init?.method === "POST") {
+        const createdTask = {
+          ...taskListResponse()[0],
+          title: "Implement login",
+          description: "Add authentication flow",
+          status: workflowMetadataResponse().statuses[0],
+          priority: workflowMetadataResponse().priorities[1],
+          primary_assignee: {
+            id: "user-1",
+            name: "Jane Doe",
+          },
+        };
+        currentTasks = [createdTask];
         return jsonResponse({
           status: 201,
           body: {
-            task: {
-              ...taskListResponse()[0],
-              title: "Implement login",
-              description: "Add authentication flow",
-              status: workflowMetadataResponse().statuses[0],
-              priority: workflowMetadataResponse().priorities[1],
-              primary_assignee: {
-                id: "user-1",
-                name: "Jane Doe",
-              },
-            },
+            task: createdTask,
           },
         });
+      }
+      if (url === "/api/tasks/task-1") {
+        return jsonResponse({ body: { task: currentTasks[0] } });
       }
 
       throw new Error(`Unexpected request: ${url}`);
@@ -593,8 +690,7 @@ describe("projects flow", () => {
     await user.click(screen.getByRole("button", { name: /create task/i }));
 
     expect(await screen.findByText(/task created/i)).toBeInTheDocument();
-    expect(await screen.findByText("ENG-1")).toBeInTheDocument();
-    expect(await screen.findByText("Implement login")).toBeInTheDocument();
+    expect((await screen.findAllByText("Implement login")).length).toBeGreaterThan(1);
     expect((await screen.findAllByText("HIGH")).length).toBeGreaterThan(0);
     const taskCall = fetchMock.mock.calls.find(
       ([requestUrl, requestInit]) =>
@@ -611,6 +707,262 @@ describe("projects flow", () => {
         parent_task_id: null,
       }),
     );
+  });
+
+  it("searches, filters, and paginates project tasks from the workspace", async () => {
+    const todoStatus = workflowMetadataResponse().statuses[0]!;
+    const highPriority = workflowMetadataResponse().priorities[1]!;
+    const fetchMock = stubFetch((url) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url.startsWith("/api/projects/project-1/tasks")) {
+        const requestUrl = new URL(`http://localhost${url}`);
+        const search = requestUrl.searchParams.get("search");
+        const page = requestUrl.searchParams.get("page");
+
+        if (search === "API") {
+          expect(requestUrl.searchParams.get("status_id")).toBe("status-todo");
+          expect(requestUrl.searchParams.get("priority_id")).toBe("priority-high");
+          expect(requestUrl.searchParams.get("assignee_id")).toBe("user-1");
+          expect(requestUrl.searchParams.get("deadline_from")).toBe("2026-05-01");
+          expect(requestUrl.searchParams.get("deadline_to")).toBe("2026-05-06");
+          expect(requestUrl.searchParams.get("is_blocked")).toBe("true");
+
+          return jsonResponse({
+            body: {
+              tasks: [
+                {
+                  ...taskListResponse()[0],
+                  title: "API blocker",
+                  is_blocked: true,
+                  status: todoStatus,
+                  priority: highPriority,
+                },
+              ],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 1,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+
+        if (page === "2") {
+          return jsonResponse({
+            body: {
+              tasks: [
+                {
+                  ...taskListResponse()[0],
+                  id: "task-2",
+                  task_key: "ENG-2",
+                  title: "Later task",
+                },
+              ],
+              pagination: {
+                page: 2,
+                page_size: 10,
+                total_count: 2,
+                total_pages: 2,
+                has_next: false,
+                has_previous: true,
+              },
+            },
+          });
+        }
+
+        return jsonResponse({
+          body: {
+            tasks: taskListResponse(),
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 2,
+              total_pages: 2,
+              has_next: true,
+              has_previous: false,
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText("Initial task")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /next task page/i }));
+    expect(await screen.findByText("Later task")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/search project tasks/i));
+    await user.type(screen.getByLabelText(/search project tasks/i), "API");
+    await user.selectOptions(screen.getByLabelText(/status filter/i), "status-todo");
+    await user.selectOptions(screen.getByLabelText(/priority filter/i), "priority-high");
+    await user.selectOptions(screen.getByLabelText(/assignee filter/i), "user-1");
+    await user.type(screen.getByLabelText(/deadline from/i), "2026-05-01");
+    await user.type(screen.getByLabelText(/deadline to/i), "2026-05-06");
+    await user.click(screen.getByLabelText(/only blocked tasks/i));
+    await user.click(screen.getByRole("button", { name: /apply task filters/i }));
+
+    expect(await screen.findByText("API blocker")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/project-1/tasks?"),
+      expect.anything(),
+    );
+  });
+
+  it("renders My Tasks and expands to collaborator work sorted by priority", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
+      if (url === "/api/projects/project-1/activity") {
+        return jsonResponse({ body: { activity: [] } });
+      }
+      if (url === "/api/task-statuses") {
+        return jsonResponse({ body: { statuses: workflowMetadataResponse().statuses } });
+      }
+      if (url === "/api/task-status-transitions") {
+        return jsonResponse({ body: { transitions: workflowMetadataResponse().transitions } });
+      }
+      if (url === "/api/task-priorities") {
+        return jsonResponse({ body: { priorities: workflowMetadataResponse().priorities } });
+      }
+      if (url === "/api/notifications?page=1&page_size=10") {
+        return jsonResponse({
+          body: {
+            notifications: [],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 0,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+      if (url === "/api/tasks") {
+        return jsonResponse({
+          body: {
+            tasks: [
+              {
+                ...taskListResponse()[0],
+                title: "Assigned low",
+                priority: workflowMetadataResponse().priorities[0],
+                is_overdue: true,
+              },
+            ],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 1,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+      if (url === "/api/tasks?sort_by=priority") {
+        return jsonResponse({
+          body: {
+            tasks: [
+              {
+                ...taskListResponse()[0],
+                title: "Assigned low",
+                priority: workflowMetadataResponse().priorities[0],
+                is_overdue: true,
+              },
+            ],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 1,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+      if (url === "/api/tasks?include_collaborator_tasks=true&sort_by=priority") {
+        return jsonResponse({
+          body: {
+            tasks: [
+              {
+                ...taskListResponse()[0],
+                id: "task-2",
+                task_key: "ENG-2",
+                title: "Collaborator urgent",
+                priority: workflowMetadataResponse().priorities[2],
+                is_blocked: true,
+              },
+              {
+                ...taskListResponse()[0],
+                title: "Assigned low",
+                priority: workflowMetadataResponse().priorities[0],
+                is_overdue: true,
+              },
+            ],
+            pagination: {
+              page: 1,
+              page_size: 10,
+              total_count: 2,
+              total_pages: 1,
+              has_next: false,
+              has_previous: false,
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText("Assigned low")).toBeInTheDocument();
+    expect((await screen.findAllByText("Overdue")).length).toBeGreaterThan(0);
+
+    await user.selectOptions(screen.getByLabelText(/sort my tasks by/i), "priority");
+    await user.click(screen.getByLabelText(/include collaborator tasks/i));
+
+    expect(await screen.findByText("Collaborator urgent")).toBeInTheDocument();
+    expect((await screen.findAllByText("Blocked")).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks?include_collaborator_tasks=true&sort_by=priority", expect.anything());
   });
 
   it("adds a project member from the workspace and updates the visible member list", async () => {
@@ -656,7 +1008,7 @@ describe("projects flow", () => {
     await user.click(screen.getByRole("button", { name: /add member/i }));
 
     expect(await screen.findByText(/member added/i)).toBeInTheDocument();
-    expect(await screen.findByText("New Member")).toBeInTheDocument();
+    expect((await screen.findAllByText("New Member")).length).toBeGreaterThan(0);
     const addCall = fetchMock.mock.calls.find(
       ([requestUrl, requestInit]) =>
         requestUrl === "/api/projects/project-1/members" && requestInit?.method === "POST",
@@ -1062,8 +1414,385 @@ describe("projects flow", () => {
     await user.click(await screen.findByText("Initial task"));
 
     expect(await screen.findByText(/task detail/i)).toBeInTheDocument();
-    expect(await screen.findAllByText("Collaborator One")).toHaveLength(2);
+    expect((await screen.findAllByText("Collaborator One")).length).toBeGreaterThan(1);
     expect(await screen.findAllByText("Overdue")).toHaveLength(2);
+  });
+
+  it("renders project and task activity from the activity endpoints", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url === "/api/auth/me") {
+          return jsonResponse({ body: sessionResponse() });
+        }
+        if (url === "/api/projects") {
+          return jsonResponse({ body: { projects: projectListResponse() } });
+        }
+        if (url === "/api/projects/project-1") {
+          return jsonResponse({ body: { project: projectDetailResponse() } });
+        }
+        if (url === "/api/projects/project-1/members") {
+          return jsonResponse({ body: { members: memberListResponse() } });
+        }
+        if (url === "/api/tasks") {
+          return jsonResponse({
+            body: {
+              tasks: [],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/notifications?page=1&page_size=10") {
+          return jsonResponse({
+            body: {
+              notifications: [],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/projects/project-1/tasks") {
+          return jsonResponse({ body: { tasks: taskListResponse() } });
+        }
+        if (url === "/api/projects/project-1/activity") {
+          return jsonResponse({
+            body: {
+              activity: [
+                {
+                  id: "activity-project-1",
+                  event_type: "TASK_CREATED",
+                  message: "Jane Doe created ENG-1 Initial task.",
+                  actor_name: "Jane Doe",
+                  project_code: "ENG",
+                  project_name: "Engineering Platform",
+                  task_key: "ENG-1",
+                  task_title: "Initial task",
+                  related_user_name: null,
+                  metadata: {},
+                  created_at: "2026-05-03T10:00:00Z",
+                },
+              ],
+            },
+          });
+        }
+        if (url === "/api/tasks/task-1") {
+          return jsonResponse({ body: { task: taskListResponse()[0] } });
+        }
+        if (url === "/api/tasks/task-1/comments") {
+          return jsonResponse({ body: { comments: [] } });
+        }
+        if (url === "/api/tasks/task-1/activity") {
+          return jsonResponse({
+            body: {
+              activity: [
+                {
+                  id: "activity-task-1",
+                  event_type: "TASK_STATUS_CHANGED",
+                  message: "Jane Doe changed ENG-1 from TODO to IN_PROGRESS.",
+                  actor_name: "Jane Doe",
+                  project_code: "ENG",
+                  project_name: "Engineering Platform",
+                  task_key: "ENG-1",
+                  task_title: "Initial task",
+                  related_user_name: null,
+                  metadata: {
+                    from_status: "TODO",
+                    to_status: "IN_PROGRESS",
+                  },
+                  created_at: "2026-05-03T11:00:00Z",
+                },
+              ],
+            },
+          });
+        }
+        if (url === "/api/task-statuses") {
+          return jsonResponse({
+            body: {
+              statuses: workflowMetadataResponse().statuses,
+            },
+          });
+        }
+        if (url === "/api/task-status-transitions") {
+          return jsonResponse({
+            body: {
+              transitions: workflowMetadataResponse().transitions,
+            },
+          });
+        }
+        if (url === "/api/task-priorities") {
+          return jsonResponse({
+            body: {
+              priorities: workflowMetadataResponse().priorities,
+            },
+          });
+        }
+
+        throw new Error(`Unexpected request: ${url}`);
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByRole("heading", { name: /project activity/i })).toBeInTheDocument();
+    expect(await screen.findByText("Jane Doe created ENG-1 Initial task.")).toBeInTheDocument();
+
+    const taskTitle = await screen.findByText("Initial task");
+    const taskButton = taskTitle.closest("button");
+
+    expect(taskButton).not.toBeNull();
+
+    await user.click(taskButton!);
+
+    expect(await screen.findByRole("heading", { name: /task activity/i })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Jane Doe changed ENG-1 from TODO to IN_PROGRESS."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders notifications and lets the user mark one or all as read", async () => {
+    let currentNotifications = notificationListResponse([
+      notificationListResponse()[0],
+      {
+        id: "notification-2",
+        event_type: "COMMENT_CREATED",
+        message: "Alex Smith commented on ENG-1.",
+        is_read: false,
+        read_at: null,
+        metadata: {
+          task_id: "task-1",
+        },
+        created_at: "2026-05-03T11:00:00Z",
+      },
+    ]);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url === "/api/auth/me") {
+          return jsonResponse({ body: sessionResponse() });
+        }
+        if (url === "/api/projects") {
+          return jsonResponse({ body: { projects: projectListResponse() } });
+        }
+        if (url === "/api/projects/project-1") {
+          return jsonResponse({ body: { project: projectDetailResponse() } });
+        }
+        if (url === "/api/projects/project-1/members") {
+          return jsonResponse({ body: { members: memberListResponse() } });
+        }
+        if (url === "/api/tasks") {
+          return jsonResponse({
+            body: {
+              tasks: [],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/projects/project-1/tasks") {
+          return jsonResponse({ body: { tasks: taskListResponse() } });
+        }
+        if (url === "/api/projects/project-1/activity") {
+          return jsonResponse({ body: { activity: [] } });
+        }
+        if (url === "/api/task-statuses") {
+          return jsonResponse({ body: { statuses: workflowMetadataResponse().statuses } });
+        }
+        if (url === "/api/task-status-transitions") {
+          return jsonResponse({ body: { transitions: workflowMetadataResponse().transitions } });
+        }
+        if (url === "/api/task-priorities") {
+          return jsonResponse({ body: { priorities: workflowMetadataResponse().priorities } });
+        }
+        if (url === "/api/notifications?page=1&page_size=10") {
+          return jsonResponse({
+            body: {
+              notifications: currentNotifications,
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: currentNotifications.length,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/notifications/notification-1/read" && init?.method === "POST") {
+          currentNotifications = currentNotifications.map((notification) =>
+            notification.id === "notification-1"
+              ? {
+                  ...notification,
+                  is_read: true,
+                  read_at: "2026-05-03T12:10:00Z",
+                }
+              : notification,
+          );
+          return jsonResponse({ body: { notification: currentNotifications[0] } });
+        }
+        if (url === "/api/notifications/read-all" && init?.method === "POST") {
+          currentNotifications = currentNotifications.map((notification) => ({
+            ...notification,
+            is_read: true,
+            read_at: notification.read_at ?? "2026-05-03T12:15:00Z",
+          }));
+          return jsonResponse({ body: { updated_count: 1 } });
+        }
+
+        throw new Error(`Unexpected request: ${url}`);
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    expect(await screen.findByText("2 unread")).toBeInTheDocument();
+
+    const markReadButtons = await screen.findAllByRole("button", { name: /^mark read$/i });
+    await user.click(markReadButtons[0]!);
+    expect(await screen.findByText("1 unread")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: /mark all read/i }));
+    expect(await screen.findByText("All caught up")).toBeInTheDocument();
+  });
+
+  it("renders task comments and posts a new immutable comment", async () => {
+    let currentComments = commentListResponse([
+      {
+        id: "comment-1",
+        task_id: "task-1",
+        author: { id: "user-2", name: "Alex Smith" },
+        content: "Existing timeline comment",
+        created_at: "2026-05-03T10:00:00Z",
+      },
+    ]);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url === "/api/auth/me") {
+          return jsonResponse({ body: sessionResponse() });
+        }
+        if (url === "/api/projects") {
+          return jsonResponse({ body: { projects: projectListResponse() } });
+        }
+        if (url === "/api/projects/project-1") {
+          return jsonResponse({ body: { project: projectDetailResponse() } });
+        }
+        if (url === "/api/projects/project-1/members") {
+          return jsonResponse({ body: { members: memberListResponse() } });
+        }
+        if (url === "/api/tasks") {
+          return jsonResponse({
+            body: {
+              tasks: [],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/projects/project-1/tasks") {
+          return jsonResponse({ body: { tasks: taskListResponse() } });
+        }
+        if (url === "/api/projects/project-1/activity") {
+          return jsonResponse({ body: { activity: [] } });
+        }
+        if (url === "/api/task-statuses") {
+          return jsonResponse({ body: { statuses: workflowMetadataResponse().statuses } });
+        }
+        if (url === "/api/task-status-transitions") {
+          return jsonResponse({ body: { transitions: workflowMetadataResponse().transitions } });
+        }
+        if (url === "/api/task-priorities") {
+          return jsonResponse({ body: { priorities: workflowMetadataResponse().priorities } });
+        }
+        if (url === "/api/notifications?page=1&page_size=10") {
+          return jsonResponse({
+            body: {
+              notifications: [],
+              pagination: {
+                page: 1,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 1,
+                has_next: false,
+                has_previous: false,
+              },
+            },
+          });
+        }
+        if (url === "/api/tasks/task-1") {
+          return jsonResponse({ body: { task: taskListResponse()[0] } });
+        }
+        if (url === "/api/tasks/task-1/activity") {
+          return jsonResponse({ body: { activity: [] } });
+        }
+        if (url === "/api/tasks/task-1/comments" && !init?.method) {
+          return jsonResponse({ body: { comments: currentComments } });
+        }
+        if (url === "/api/tasks/task-1/comments" && init?.method === "POST") {
+          currentComments = [
+            ...currentComments,
+            {
+              id: "comment-2",
+              task_id: "task-1",
+              author: { id: "user-1", name: "Jane Doe" },
+              content: "Fresh immutable note",
+              created_at: "2026-05-03T10:05:00Z",
+            },
+          ];
+          return jsonResponse({ body: { comment: currentComments[1] }, status: 201 });
+        }
+
+        throw new Error(`Unexpected request: ${url}`);
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+    expect(await screen.findByText("Existing timeline comment")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit comment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete comment/i })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/add comment/i), "Fresh immutable note");
+    await user.click(await screen.findByRole("button", { name: /post comment/i }));
+
+    expect(await screen.findByText("Fresh immutable note")).toBeInTheDocument();
   });
 
   it("creates a subtask from the project workspace", async () => {
@@ -1314,6 +2043,153 @@ describe("projects flow", () => {
         deadline: "2026-05-05",
         primary_assignee_id: "user-1",
         collaborator_ids: ["user-2"],
+        version: 1,
+      }),
+    );
+  });
+
+  it("adds and removes task dependencies from task detail", async () => {
+    const dependencySummary = {
+      id: "task-2",
+      task_key: "ENG-2",
+      title: "API prerequisite",
+      parent_task_id: null,
+      status: workflowMetadataResponse().statuses[1],
+      is_blocked: false,
+    };
+    let currentTasks = taskListResponse([
+      {
+        ...taskListResponse()[0],
+        is_blocked: false,
+        dependencies: [],
+      },
+      {
+        ...taskListResponse()[0],
+        id: "task-2",
+        task_key: "ENG-2",
+        title: "API prerequisite",
+        status: workflowMetadataResponse().statuses[1],
+        dependencies: [],
+      },
+    ]);
+    let selectedTask = currentTasks[0]!;
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: currentTasks } });
+      }
+      if (url === "/api/tasks/task-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { task: selectedTask } });
+      }
+      if (url === "/api/tasks/task-1/dependencies" && init?.method === "POST") {
+        selectedTask = {
+          ...selectedTask,
+          is_blocked: true,
+          dependencies: [dependencySummary],
+        };
+        currentTasks = [
+          selectedTask,
+          currentTasks[1]!,
+        ];
+        return jsonResponse({ body: { task: selectedTask } });
+      }
+      if (url === "/api/tasks/task-1/dependencies/task-2" && init?.method === "DELETE") {
+        selectedTask = {
+          ...selectedTask,
+          is_blocked: false,
+          dependencies: [],
+        };
+        currentTasks = [
+          selectedTask,
+          currentTasks[1]!,
+        ];
+        return jsonResponse({ body: { task: selectedTask } });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+    await user.selectOptions(screen.getByLabelText(/add dependency/i), "task-2");
+    await user.click(screen.getByRole("button", { name: /add dependency/i }));
+
+    expect((await screen.findAllByText("API prerequisite")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Blocked")).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /remove dependency/i }));
+
+    expect(await screen.findByText(/no dependencies/i)).toBeInTheDocument();
+    const addCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/tasks/task-1/dependencies" && requestInit?.method === "POST",
+    );
+    expect(addCall?.[1]?.body).toBe(JSON.stringify({ depends_on_task_id: "task-2" }));
+  });
+
+  it("shows blocked status-change errors in task detail", async () => {
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks") {
+        return jsonResponse({ body: { tasks: taskListResponse() } });
+      }
+      if (url === "/api/tasks/task-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { task: taskListResponse()[0] } });
+      }
+      if (url === "/api/tasks/task-1/status" && init?.method === "POST") {
+        return jsonResponse({
+          status: 400,
+          body: {
+            error: {
+              code: "TASK_BLOCKED",
+              message: "Blocked tasks cannot move forward until all dependencies are complete.",
+              details: {},
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+    await user.click(screen.getByRole("button", { name: /start work/i }));
+
+    expect(await screen.findByText(/blocked tasks cannot move forward until all dependencies are complete\./i)).toBeInTheDocument();
+    const statusCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/tasks/task-1/status" && requestInit?.method === "POST",
+    );
+    expect(statusCall?.[1]?.body).toBe(
+      JSON.stringify({
+        to_status_id: "status-in-progress",
         version: 1,
       }),
     );

@@ -8,11 +8,17 @@ from django.db import IntegrityError, close_old_connections
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.activity_logs.models import ActivityLog, ActivityLogEvent
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
-from apps.tasks.domain.services import create_task as create_task_service
+from apps.tasks.domain.services import (
+    TaskDependencyCycleError,
+    add_task_dependency as add_task_dependency_service,
+    create_task as create_task_service,
+)
 from apps.tasks.models import (
     Task,
+    TaskDependency,
     TaskPriority,
     TaskPriorityName,
     TaskStatusName,
@@ -91,6 +97,53 @@ def serialize_priority(priority: TaskPriority | None):
     }
 
 
+def serialize_task_dependency(task: Task):
+    dependency_links = list(
+        TaskDependency.objects.filter(
+            task=task,
+            depends_on_task__deleted_at__isnull=True,
+        ).select_related("depends_on_task__status")
+    )
+    return {
+        "id": str(task.id),
+        "task_key": task.task_key,
+        "title": task.title,
+        "parent_task_id": str(task.parent_task_id) if task.parent_task_id else None,
+        "status": serialize_status(task.status),
+        "is_blocked": any(
+            not dependency_link.depends_on_task.status.is_final for dependency_link in dependency_links
+        ),
+    }
+
+
+def serialize_activity_entry(entry: ActivityLog):
+    return {
+        "id": str(entry.id),
+        "event_type": entry.event_type,
+        "message": entry.message,
+        "actor_name": entry.actor_name_snapshot,
+        "project_code": entry.project_code_snapshot,
+        "project_name": entry.project_name_snapshot,
+        "task_key": entry.task_key_snapshot,
+        "task_title": entry.task_title_snapshot,
+        "related_user_name": entry.related_user_name_snapshot,
+        "metadata": entry.metadata,
+        "created_at": entry.created_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def serialize_pagination(*, page=1, page_size=10, total_count=0):
+    total_pages = max(1, (total_count + page_size - 1) // page_size) if total_count else 1
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_previous": page > 1,
+    }
+
+
 def create_task(
     *,
     project,
@@ -124,6 +177,12 @@ def create_task(
 
 
 def serialize_task(task: Task):
+    dependency_links = list(
+        task.dependency_links.filter(depends_on_task__deleted_at__isnull=True).select_related(
+            "depends_on_task",
+            "depends_on_task__status",
+        )
+    )
     return {
         "id": str(task.id),
         "task_key": task.task_key,
@@ -145,7 +204,9 @@ def serialize_task(task: Task):
             {"id": str(collaborator.id), "name": collaborator.name}
             for collaborator in sorted(task.collaborators.all(), key=lambda user: (user.name, str(user.id)))
         ],
-        "is_blocked": False,
+        "is_blocked": any(
+            not dependency_link.depends_on_task.status.is_final for dependency_link in dependency_links
+        ),
         "is_overdue": bool(task.deadline and not task.status.is_final and task.deadline < timezone.localdate()),
         "start_date": task.start_date.isoformat() if task.start_date else None,
         "deadline": task.deadline.isoformat() if task.deadline else None,
@@ -157,7 +218,13 @@ def serialize_task(task: Task):
             .prefetch_related("collaborators")
             .order_by("task_number")
         ],
-        "dependencies": [],
+        "dependencies": [
+            serialize_task_dependency(dependency_link.depends_on_task)
+            for dependency_link in sorted(
+                dependency_links,
+                key=lambda dependency_link: dependency_link.depends_on_task.task_number,
+            )
+        ],
     }
 
 
@@ -242,7 +309,10 @@ def test_visible_project_member_can_list_project_tasks():
     response = client.get(f"/api/projects/{project.id}/tasks")
 
     assert response.status_code == 200
-    assert response.json() == {"tasks": [serialize_task(task)]}
+    assert response.json() == {
+        "tasks": [serialize_task(task)],
+        "pagination": serialize_pagination(total_count=1),
+    }
 
 
 def test_non_member_cannot_list_project_tasks():
@@ -264,6 +334,197 @@ def test_non_member_cannot_list_project_tasks():
             "message": "Project not found.",
             "details": {},
         }
+    }
+
+
+def test_project_task_list_returns_pagination_and_respects_page_params():
+    admin_user = create_user(
+        email="task-list-page-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-list-page-member@example.com")
+    project = create_project(owner=admin_user, code="PGT", name="Paged Tasks")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    first_task = create_task(project=project, created_by=admin_user, title="Task 1")
+    second_task = create_task(project=project, created_by=admin_user, title="Task 2")
+    third_task = create_task(project=project, created_by=admin_user, title="Task 3")
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/projects/{project.id}/tasks", {"page": 2, "page_size": 2})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tasks": [serialize_task(third_task)],
+        "pagination": {
+            "page": 2,
+            "page_size": 2,
+            "total_count": 3,
+            "total_pages": 2,
+            "has_next": False,
+            "has_previous": True,
+        },
+    }
+    assert first_task.id != second_task.id
+
+
+def test_project_task_list_combines_search_filters_and_visibility_scope():
+    admin_user = create_user(
+        email="task-list-filter-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-list-filter-member@example.com")
+    other_member = create_user(email="task-list-filter-other@example.com")
+    project = create_project(owner=admin_user, code="FLT", name="Filtered Tasks")
+    hidden_project = create_project(owner=admin_user, code="HIDF", name="Hidden Filtered Tasks")
+    for member in [member_user, other_member]:
+        create_membership(
+            project=project,
+            user=member,
+            role=ProjectMembershipRole.TEAM_MEMBER,
+        )
+    high_priority = get_priority(TaskPriorityName.HIGH)
+    low_priority = get_priority(TaskPriorityName.LOW)
+    blocking_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Dependency source",
+        status_name=TaskStatusName.TODO,
+    )
+    matching_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="API rollout",
+        assignee=member_user,
+        priority_name=TaskPriorityName.HIGH,
+        deadline=timezone.localdate() + timedelta(days=1),
+    )
+    TaskDependency.objects.create(task=matching_task, depends_on_task=blocking_task)
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="API done task",
+        assignee=member_user,
+        priority_name=TaskPriorityName.HIGH,
+        status_name=TaskStatusName.DONE,
+        deadline=timezone.localdate() + timedelta(days=1),
+    )
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="API low priority",
+        assignee=member_user,
+        priority_name=TaskPriorityName.LOW,
+        deadline=timezone.localdate() + timedelta(days=1),
+    )
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="API assigned elsewhere",
+        assignee=other_member,
+        priority_name=TaskPriorityName.HIGH,
+        deadline=timezone.localdate() + timedelta(days=1),
+    )
+    create_task(
+        project=hidden_project,
+        created_by=admin_user,
+        title="API hidden task",
+        priority_name=TaskPriorityName.HIGH,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(
+        f"/api/projects/{project.id}/tasks",
+        {
+            "search": "API",
+            "status_id": str(get_status(TaskStatusName.TODO).id),
+            "priority_id": str(high_priority.id),
+            "assignee_id": str(member_user.id),
+            "deadline_from": timezone.localdate().isoformat(),
+            "deadline_to": (timezone.localdate() + timedelta(days=2)).isoformat(),
+            "is_blocked": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tasks": [serialize_task(matching_task)],
+        "pagination": serialize_pagination(total_count=1),
+    }
+    assert low_priority.id != high_priority.id
+
+
+def test_my_tasks_lists_primary_assignments_and_optional_collaborator_tasks_sorted():
+    admin_user = create_user(
+        email="my-tasks-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="my-tasks-member@example.com")
+    collaborator_user = create_user(email="my-tasks-collaborator@example.com")
+    project = create_project(owner=admin_user, code="MYT", name="My Tasks")
+    for member in [member_user, collaborator_user]:
+        create_membership(
+            project=project,
+            user=member,
+            role=ProjectMembershipRole.TEAM_MEMBER,
+        )
+    overdue_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Assigned overdue",
+        assignee=member_user,
+        priority_name=TaskPriorityName.LOW,
+        deadline=timezone.localdate() - timedelta(days=1),
+    )
+    collaborator_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Collaborator urgent",
+        assignee=collaborator_user,
+        collaborators=[member_user],
+        priority_name=TaskPriorityName.URGENT,
+        deadline=timezone.localdate() + timedelta(days=3),
+    )
+    blocking_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Collaborator dependency",
+        status_name=TaskStatusName.TODO,
+    )
+    TaskDependency.objects.create(task=collaborator_task, depends_on_task=blocking_task)
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="Unrelated assignment",
+        assignee=collaborator_user,
+        priority_name=TaskPriorityName.HIGH,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    default_response = client.get("/api/tasks")
+    collaborator_response = client.get(
+        "/api/tasks",
+        {
+            "include_collaborator_tasks": True,
+            "sort_by": "priority",
+        },
+    )
+
+    assert default_response.status_code == 200
+    assert default_response.json() == {
+        "tasks": [serialize_task(overdue_task)],
+        "pagination": serialize_pagination(total_count=1),
+    }
+    assert collaborator_response.status_code == 200
+    assert collaborator_response.json() == {
+        "tasks": [serialize_task(collaborator_task), serialize_task(overdue_task)],
+        "pagination": serialize_pagination(total_count=2),
     }
 
 
@@ -388,6 +649,101 @@ def test_soft_deleted_task_is_hidden_from_task_detail():
             "details": {},
         }
     }
+
+
+def test_visible_project_member_can_view_task_activity():
+    admin_user = create_user(
+        email="task-activity-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-activity-member@example.com")
+    project = create_project(owner=admin_user, code="ACT", name="Activity")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Activity task")
+    entry = ActivityLog.objects.create(
+        event_type=ActivityLogEvent.TASK_CREATED,
+        message="Jane Doe created ACT-1 Activity task.",
+        actor=admin_user,
+        project=project,
+        task=task,
+        actor_name_snapshot=admin_user.name,
+        project_code_snapshot=project.code,
+        project_name_snapshot=project.name,
+        task_key_snapshot=task.task_key,
+        task_title_snapshot=task.title,
+        metadata={},
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/tasks/{task.id}/activity")
+
+    assert response.status_code == 200
+    assert response.json() == {"activity": [serialize_activity_entry(entry)]}
+
+
+def test_non_member_cannot_view_task_activity():
+    admin_user = create_user(
+        email="task-activity-hidden-admin@example.com",
+        is_admin=True,
+    )
+    outsider_user = create_user(email="task-activity-outsider@example.com")
+    project = create_project(owner=admin_user, code="HAT", name="Hidden Activity")
+    task = create_task(project=project, created_by=admin_user, title="Hidden activity")
+    client = APIClient()
+    client.force_login(outsider_user)
+
+    response = client.get(f"/api/tasks/{task.id}/activity")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "TASK_NOT_FOUND",
+            "message": "Task not found.",
+            "details": {},
+        }
+    }
+
+
+def test_soft_deleted_task_activity_remains_visible_to_project_members():
+    admin_user = create_user(
+        email="task-activity-deleted-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-activity-deleted-member@example.com")
+    project = create_project(owner=admin_user, code="DAT", name="Deleted Activity")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Deleted task")
+    entry = ActivityLog.objects.create(
+        event_type=ActivityLogEvent.TASK_DELETED,
+        message="Jane Doe deleted DAT-1 Deleted task.",
+        actor=admin_user,
+        project=project,
+        task=task,
+        actor_name_snapshot=admin_user.name,
+        project_code_snapshot=project.code,
+        project_name_snapshot=project.name,
+        task_key_snapshot=task.task_key,
+        task_title_snapshot=task.title,
+        metadata={},
+    )
+    task.deleted_at = timezone.now()
+    task.save(update_fields=["deleted_at", "updated_at"])
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/tasks/{task.id}/activity")
+
+    assert response.status_code == 200
+    assert response.json() == {"activity": [serialize_activity_entry(entry)]}
 
 
 def test_task_endpoints_require_authentication():
@@ -517,6 +873,11 @@ def test_admin_can_create_a_task_with_default_todo_status_and_priority():
     assert task.task_key == "ENG-1"
     assert project.task_counter == 1
     assert task.project_id == project.id
+    assert ActivityLog.objects.filter(
+        project=project,
+        task=task,
+        event_type=ActivityLogEvent.TASK_CREATED,
+    ).exists()
 
 
 def test_project_manager_can_create_a_task():
@@ -1025,6 +1386,11 @@ def test_project_manager_can_delete_task_without_subtasks():
 
     assert response.status_code == 204
     assert task.deleted_at is not None
+    assert ActivityLog.objects.filter(
+        project=project,
+        task=task,
+        event_type=ActivityLogEvent.TASK_DELETED,
+    ).exists()
 
 
 def test_delete_task_requires_cascade_confirmation_when_subtasks_exist():
@@ -1099,6 +1465,8 @@ def test_delete_task_cascades_to_active_subtasks_with_confirmation():
     assert response.status_code == 204
     assert parent_task.deleted_at is not None
     assert child_task.deleted_at is not None
+    assert ActivityLog.objects.filter(task=parent_task, event_type=ActivityLogEvent.TASK_DELETED).exists()
+    assert ActivityLog.objects.filter(task=child_task, event_type=ActivityLogEvent.SUBTASK_DELETED).exists()
 
 
 def test_team_member_cannot_delete_task():
@@ -1153,7 +1521,10 @@ def test_soft_deleted_task_is_hidden_from_project_task_list():
     response = client.get(f"/api/projects/{project.id}/tasks")
 
     assert response.status_code == 200
-    assert response.json() == {"tasks": [serialize_task(visible_task)]}
+    assert response.json() == {
+        "tasks": [serialize_task(visible_task)],
+        "pagination": serialize_pagination(total_count=1),
+    }
 
 
 def test_project_member_can_change_task_status():
@@ -1218,6 +1589,447 @@ def test_change_task_status_rejects_invalid_transition():
             "details": {},
         }
     }
+
+
+def test_parent_task_cannot_move_to_done_while_subtasks_are_incomplete():
+    admin_user = create_user(
+        email="task-status-parent-block-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-parent-block-member@example.com")
+    project = create_project(owner=admin_user, code="SPD", name="Parent Completion")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    parent_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Parent task",
+        status_name=TaskStatusName.IN_PROGRESS,
+    )
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="Incomplete child",
+        status_name=TaskStatusName.TODO,
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+    done_status = get_status(TaskStatusName.DONE)
+
+    response = client.post(
+        f"/api/tasks/{parent_task.id}/status",
+        {"to_status_id": str(done_status.id), "version": 1},
+        format="json",
+    )
+
+    parent_task.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "SUBTASKS_INCOMPLETE",
+            "message": "Parent tasks cannot be completed while active subtasks remain incomplete.",
+            "details": {},
+        }
+    }
+    assert parent_task.status.name == TaskStatusName.IN_PROGRESS
+
+
+def test_parent_task_can_move_to_done_after_all_subtasks_are_done():
+    admin_user = create_user(
+        email="task-status-parent-done-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-parent-done-member@example.com")
+    project = create_project(owner=admin_user, code="PAD", name="Parent Done")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    parent_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Parent task",
+        status_name=TaskStatusName.IN_PROGRESS,
+    )
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="Done child",
+        status_name=TaskStatusName.DONE,
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+    done_status = get_status(TaskStatusName.DONE)
+
+    response = client.post(
+        f"/api/tasks/{parent_task.id}/status",
+        {"to_status_id": str(done_status.id), "version": 1},
+        format="json",
+    )
+
+    parent_task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(parent_task)}
+    assert parent_task.status.name == TaskStatusName.DONE
+    assert parent_task.version == 2
+
+
+def test_reopening_subtask_reopens_done_parent():
+    admin_user = create_user(
+        email="task-status-reopen-parent-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-reopen-parent-member@example.com")
+    project = create_project(owner=admin_user, code="ROP", name="Reopen Parent")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    parent_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Parent task",
+        status_name=TaskStatusName.DONE,
+    )
+    subtask = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Child task",
+        status_name=TaskStatusName.DONE,
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(member_user)
+    in_progress_status = get_status(TaskStatusName.IN_PROGRESS)
+
+    response = client.post(
+        f"/api/tasks/{subtask.id}/status",
+        {"to_status_id": str(in_progress_status.id), "version": 1},
+        format="json",
+    )
+
+    parent_task.refresh_from_db()
+    subtask.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(subtask)}
+    assert subtask.status.name == TaskStatusName.IN_PROGRESS
+    assert parent_task.status.name == TaskStatusName.IN_PROGRESS
+    assert subtask.version == 2
+    assert parent_task.version == 2
+    assert ActivityLog.objects.filter(
+        task=parent_task,
+        event_type=ActivityLogEvent.PARENT_REOPENED,
+    ).exists()
+
+
+def test_project_manager_can_add_dependency_and_task_detail_shows_blocked_state():
+    admin_user = create_user(
+        email="task-dependency-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-dependency-manager@example.com")
+    project = create_project(owner=admin_user, code="DEPX", name="Dependencies")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    blocked_task = create_task(project=project, created_by=admin_user, title="Blocked task")
+    prerequisite = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Prerequisite task",
+        status_name=TaskStatusName.IN_PROGRESS,
+    )
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/tasks/{blocked_task.id}/dependencies",
+        {"depends_on_task_id": str(prerequisite.id)},
+        format="json",
+    )
+
+    blocked_task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(blocked_task)}
+    assert ActivityLog.objects.filter(
+        task=blocked_task,
+        event_type=ActivityLogEvent.DEPENDENCY_ADDED,
+    ).exists()
+
+    detail_response = client.get(f"/api/tasks/{blocked_task.id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json() == {"task": serialize_task(blocked_task)}
+
+
+def test_team_member_cannot_manage_task_dependencies():
+    admin_user = create_user(
+        email="task-dependency-denied-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-dependency-denied-member@example.com")
+    project = create_project(owner=admin_user, code="DEPD", name="Dependency Denied")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Task")
+    prerequisite = create_task(project=project, created_by=admin_user, title="Prerequisite")
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.post(
+        f"/api/tasks/{task.id}/dependencies",
+        {"depends_on_task_id": str(prerequisite.id)},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "TASK_PERMISSION_DENIED",
+            "message": "You do not have permission to manage task dependencies.",
+            "details": {},
+        }
+    }
+
+
+def test_add_dependency_rejects_cross_project_task():
+    admin_user = create_user(
+        email="task-dependency-cross-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-dependency-cross-manager@example.com")
+    project = create_project(owner=admin_user, code="SAME", name="Same Project")
+    other_project = create_project(owner=admin_user, code="OTHR", name="Other Project")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Task")
+    foreign_task = create_task(project=other_project, created_by=admin_user, title="Foreign task")
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/tasks/{task.id}/dependencies",
+        {"depends_on_task_id": str(foreign_task.id)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "CROSS_PROJECT_DEPENDENCY",
+            "message": "Task dependencies must stay within the same project.",
+            "details": {},
+        }
+    }
+
+
+def test_add_dependency_rejects_duplicate_and_self_reference():
+    admin_user = create_user(
+        email="task-dependency-duplicate-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-dependency-duplicate-manager@example.com")
+    project = create_project(owner=admin_user, code="DUPL", name="Duplicate Dependency")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Task")
+    prerequisite = create_task(project=project, created_by=admin_user, title="Prerequisite")
+    TaskDependency.objects.create(task=task, depends_on_task=prerequisite)
+    client = APIClient()
+    client.force_login(manager_user)
+
+    duplicate_response = client.post(
+        f"/api/tasks/{task.id}/dependencies",
+        {"depends_on_task_id": str(prerequisite.id)},
+        format="json",
+    )
+    self_response = client.post(
+        f"/api/tasks/{task.id}/dependencies",
+        {"depends_on_task_id": str(task.id)},
+        format="json",
+    )
+
+    assert duplicate_response.status_code == 400
+    assert duplicate_response.json() == {
+        "error": {
+            "code": "DUPLICATE_DEPENDENCY",
+            "message": "This dependency already exists.",
+            "details": {},
+        }
+    }
+    assert self_response.status_code == 400
+    assert self_response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "depends_on_task_id": ["A task cannot depend on itself."],
+            },
+        }
+    }
+
+
+def test_add_dependency_rejects_cycle():
+    admin_user = create_user(
+        email="task-dependency-cycle-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-dependency-cycle-manager@example.com")
+    project = create_project(owner=admin_user, code="CYCL", name="Cycle Dependency")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task_a = create_task(project=project, created_by=admin_user, title="Task A")
+    task_b = create_task(project=project, created_by=admin_user, title="Task B")
+    task_c = create_task(project=project, created_by=admin_user, title="Task C")
+    TaskDependency.objects.create(task=task_a, depends_on_task=task_b)
+    TaskDependency.objects.create(task=task_b, depends_on_task=task_c)
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/tasks/{task_c.id}/dependencies",
+        {"depends_on_task_id": str(task_a.id)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "DEPENDENCY_CYCLE",
+            "message": "This dependency would create a circular dependency.",
+            "details": {},
+        }
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_dependency_requests_reject_the_cycle_creating_transaction():
+    admin_user = create_user(
+        email="task-dependency-concurrency-admin@example.com",
+        is_admin=True,
+    )
+    project = create_project(owner=admin_user, code="CCYC", name="Concurrent Cycle")
+    task_a = create_task(project=project, created_by=admin_user, title="Task A")
+    task_b = create_task(project=project, created_by=admin_user, title="Task B")
+    start_barrier = Barrier(2)
+
+    def create_dependency(task_id, depends_on_task_id):
+        close_old_connections()
+        start_barrier.wait()
+        try:
+            add_task_dependency_service(
+                actor=admin_user,
+                task_id=task_id,
+                depends_on_task_id=depends_on_task_id,
+            )
+            return "created"
+        except TaskDependencyCycleError:
+            return "cycle_rejected"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(create_dependency, task_a.id, task_b.id)
+        second = executor.submit(create_dependency, task_b.id, task_a.id)
+        outcomes = sorted([first.result(), second.result()])
+
+    assert outcomes == ["created", "cycle_rejected"]
+    assert TaskDependency.objects.count() == 1
+
+
+def test_project_manager_can_remove_dependency():
+    admin_user = create_user(
+        email="task-dependency-remove-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-dependency-remove-manager@example.com")
+    project = create_project(owner=admin_user, code="RMVD", name="Remove Dependency")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Task")
+    prerequisite = create_task(project=project, created_by=admin_user, title="Prerequisite")
+    TaskDependency.objects.create(task=task, depends_on_task=prerequisite)
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.delete(f"/api/tasks/{task.id}/dependencies/{prerequisite.id}")
+
+    task.refresh_from_db()
+
+    assert response.status_code == 200
+    assert response.json() == {"task": serialize_task(task)}
+    assert TaskDependency.objects.filter(task=task, depends_on_task=prerequisite).exists() is False
+    assert ActivityLog.objects.filter(task=task, event_type=ActivityLogEvent.DEPENDENCY_REMOVED).exists()
+
+
+def test_change_task_status_rejects_blocked_forward_transition():
+    admin_user = create_user(
+        email="task-status-blocked-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-status-blocked-member@example.com")
+    project = create_project(owner=admin_user, code="BLKD", name="Blocked Status")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Blocked task")
+    prerequisite = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Prerequisite",
+        status_name=TaskStatusName.IN_PROGRESS,
+    )
+    TaskDependency.objects.create(task=task, depends_on_task=prerequisite)
+    client = APIClient()
+    client.force_login(member_user)
+    in_progress_status = get_status(TaskStatusName.IN_PROGRESS)
+
+    response = client.post(
+        f"/api/tasks/{task.id}/status",
+        {"to_status_id": str(in_progress_status.id), "version": 1},
+        format="json",
+    )
+
+    task.refresh_from_db()
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "TASK_BLOCKED",
+            "message": "Blocked tasks cannot move forward until all dependencies are complete.",
+            "details": {},
+        }
+    }
+    assert task.status.name == TaskStatusName.TODO
 
 
 def test_task_detail_computes_overdue_state():

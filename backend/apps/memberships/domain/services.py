@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
+from apps.activity_logs.models import ActivityLogEvent
+from apps.activity_logs.services import record_activity
 from apps.memberships.models import ProjectMembership
 from apps.projects.domain.policies import can_edit_project
 from apps.projects.domain.services import get_project_for_actor
@@ -68,13 +70,28 @@ def add_project_member(*, actor, project_id, user_id, role):
         existing_membership.role = role
         existing_membership.deleted_at = None
         existing_membership.save(update_fields=["role", "deleted_at", "updated_at"])
+        record_activity(
+            event_type=ActivityLogEvent.MEMBER_ADDED,
+            actor=actor,
+            project=project,
+            related_user=target_user,
+            metadata={"role": role},
+        )
         return existing_membership
 
-    return ProjectMembership.all_objects.create(
+    membership = ProjectMembership.all_objects.create(
         project=project,
         user=target_user,
         role=role,
     )
+    record_activity(
+        event_type=ActivityLogEvent.MEMBER_ADDED,
+        actor=actor,
+        project=project,
+        related_user=target_user,
+        metadata={"role": role},
+    )
+    return membership
 
 
 def _get_active_membership_for_management(*, actor, project_id, user_id):
@@ -108,6 +125,13 @@ def update_project_member_role(*, actor, project_id, user_id, role):
     )
     membership.role = role
     membership.save(update_fields=["role", "updated_at"])
+    record_activity(
+        event_type=ActivityLogEvent.MEMBER_REASSIGNED,
+        actor=actor,
+        project=membership.project,
+        related_user=membership.user,
+        metadata={"role": role},
+    )
     return membership
 
 
@@ -120,4 +144,11 @@ def remove_project_member(*, actor, project_id, user_id):
     )
     membership.deleted_at = timezone.now()
     membership.save(update_fields=["deleted_at", "updated_at"])
+    record_activity(
+        event_type=ActivityLogEvent.MEMBER_REMOVED,
+        actor=actor,
+        project=membership.project,
+        related_user=membership.user,
+        metadata={"role": membership.role},
+    )
     return membership

@@ -45,6 +45,10 @@ def can_delete_task(*, user, project) -> bool:
     return can_update_task_planning(user=user, project=project)
 
 
+def can_manage_task_dependencies(*, user, project) -> bool:
+    return can_update_task_planning(user=user, project=project)
+
+
 def can_update_task_description(*, user, project) -> bool:
     if (
         not _is_active_authorized_user(user)

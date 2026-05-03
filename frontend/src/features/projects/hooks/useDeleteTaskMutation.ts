@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { deleteTask } from "../api/projectsApi";
+import { myTasksQueryKeyPrefix } from "./useMyTasksQuery";
 import { type DeleteTaskRequest } from "../types";
-import { projectTasksQueryKey } from "./useProjectTasksQuery";
+import { projectActivityQueryKey } from "./useProjectActivityQuery";
+import { projectTasksQueryKeyPrefix } from "./useProjectTasksQuery";
 import { taskQueryKey } from "./useTaskQuery";
 
 
@@ -25,10 +27,18 @@ export function useDeleteTaskMutation(projectId: string | null, taskId: string |
       queryClient.removeQueries({ queryKey: taskQueryKey(taskId), exact: true });
 
       if (projectId) {
-        await queryClient.invalidateQueries({
-          queryKey: projectTasksQueryKey(projectId),
-          exact: true,
-        });
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: projectTasksQueryKeyPrefix(projectId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: projectActivityQueryKey(projectId),
+            exact: true,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: myTasksQueryKeyPrefix,
+          }),
+        ]);
       }
     },
   });

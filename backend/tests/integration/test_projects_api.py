@@ -4,6 +4,7 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.activity_logs.models import ActivityLog, ActivityLogEvent
 from apps.memberships.models import ProjectMembership, ProjectMembershipRole
 from apps.projects.models import Project
 
@@ -42,6 +43,22 @@ def create_membership(*, project, user, role):
         user=user,
         role=role,
     )
+
+
+def serialize_activity_entry(entry: ActivityLog):
+    return {
+        "id": str(entry.id),
+        "event_type": entry.event_type,
+        "message": entry.message,
+        "actor_name": entry.actor_name_snapshot,
+        "project_code": entry.project_code_snapshot,
+        "project_name": entry.project_name_snapshot,
+        "task_key": entry.task_key_snapshot,
+        "task_title": entry.task_title_snapshot,
+        "related_user_name": entry.related_user_name_snapshot,
+        "metadata": entry.metadata,
+        "created_at": entry.created_at.isoformat().replace("+00:00", "Z"),
+    }
 
 
 def test_admin_can_create_a_project():
@@ -502,6 +519,62 @@ def test_active_project_member_can_view_project_details():
             "can_edit": False,
             "can_delete": False,
             "can_manage_members": False,
+        }
+    }
+
+
+def test_visible_project_member_can_view_project_activity():
+    admin_user = create_user(
+        email="project-activity-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    member_user = create_user(email="project-activity-member@example.com")
+    project = create_project(owner=admin_user, code="PAC", name="Project Activity")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    entry = ActivityLog.objects.create(
+        event_type=ActivityLogEvent.MEMBER_ADDED,
+        message="Jane Doe added Jane Doe to the project.",
+        actor=admin_user,
+        project=project,
+        actor_name_snapshot=admin_user.name,
+        project_code_snapshot=project.code,
+        project_name_snapshot=project.name,
+        related_user_name_snapshot=member_user.name,
+        metadata={"role": "TEAM_MEMBER"},
+    )
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/projects/{project.id}/activity")
+
+    assert response.status_code == 200
+    assert response.json() == {"activity": [serialize_activity_entry(entry)]}
+
+
+def test_non_member_cannot_view_project_activity():
+    admin_user = create_user(
+        email="project-activity-hidden-admin@example.com",
+        is_admin=True,
+        must_reset_password=False,
+    )
+    outsider_user = create_user(email="project-activity-outsider@example.com")
+    project = create_project(owner=admin_user, code="PHA", name="Hidden Project Activity")
+    client = APIClient()
+    client.force_login(outsider_user)
+
+    response = client.get(f"/api/projects/{project.id}/activity")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "PROJECT_NOT_FOUND",
+            "message": "Project not found.",
+            "details": {},
         }
     }
 

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { deleteProject } from "../api/projectsApi";
 import { type Project } from "../types";
+import { projectActivityQueryKey } from "./useProjectActivityQuery";
 import { projectQueryKey } from "./useProjectQuery";
 import { projectsQueryKey } from "./useProjectsQuery";
 
@@ -25,6 +26,7 @@ export function useDeleteProjectMutation(projectId: string | null) {
         (projects ?? []).filter((project) => project.id !== projectId),
       );
       queryClient.removeQueries({ queryKey: projectQueryKey(projectId), exact: true });
+      queryClient.removeQueries({ queryKey: projectActivityQueryKey(projectId), exact: true });
     },
   });
 }

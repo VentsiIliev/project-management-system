@@ -1,57 +1,25 @@
-﻿# US-033 - Add Comment  ## Metadata - Area: 9. Comments and Real-Time Updates - GitHub labels: `user-story`, `mvp`, `area:comments` - Suggested status: `Backlog` - Suggested wave: `Wave 4` - Depends on: US-019, US-001 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** project member  
-**I want** to comment on tasks  
-**So that** I can collaborate with teammates.
+# US-033 - Add Comment
 
-### Acceptance Criteria
+## Metadata
+- Area: 9. Comments and Real-Time Updates
+- GitHub labels: `user-story`, `mvp`, `area:comments`
+- Status: `implemented`
+- Wave: `Wave 4`
+- Depends on: `US-019`, `US-001`, `US-040`
+- Grouped slice: `US-033` + `US-034` + `US-035` + `US-036` + `US-037` + `US-038` + `US-039` + `US-066` + `US-067` + `US-072`
 
-**Given** I have access to the task  
-**When** I submit a non-empty comment  
-**Then** the system saves the comment.
+## Scope
+- Allow visible project members to list and create immutable task comments.
+- Reject empty content.
+- Emit activity and in-app notification side effects on successful creation.
 
-**Given** the comment is empty  
-**When** I submit it  
-**Then** the system rejects the request.
+## Acceptance
+- Visible members can create a non-empty comment on a visible task.
+- Empty comments are rejected with structured validation errors.
+- Successful comment creation produces activity and notification events.
 
-**Given** a comment is created  
-**When** the action succeeds  
-**Then** the system creates activity and notification events.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
-
-### Database
-- [ ] Create comments table with UUID, task, author, content, created_at; no edit/delete columns or flows.
-- [ ] Ensure comment FK behavior preserves expected task/task-history semantics.
-
-### Backend/API
-- [ ] Implement comments GET/POST endpoints.
-- [ ] Reject empty comments and enforce task access.
-- [ ] Persist comment before WebSocket broadcast.
-- [ ] Publish comment events to authorized task viewers only.
-- [ ] Trigger notifications and activity logs on comment creation.
-
-### Frontend/UI
-- [ ] Build comment composer and immutable comment timeline.
-- [ ] Connect to task comment WebSocket channel.
-- [ ] Implement reconnect indicator, exponential backoff, and missed-comment fetch.
-
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test comment immutability and authorization.
-- [ ] Integration test REST comment creation, notification trigger, and WebSocket broadcast/reconnect.
-
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Delivered
+- `GET /api/tasks/{task_id}/comments`
+- `POST /api/tasks/{task_id}/comments`
+- Task-detail comment composer and timeline in the existing workspace UI
+- Comment creation emits `COMMENT_CREATED` activity and in-app notifications
