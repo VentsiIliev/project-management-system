@@ -59,6 +59,7 @@ export type Task = {
   id: string;
   task_key: string;
   project_id: string;
+  parent_task_id: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -111,6 +112,7 @@ export type CreateTaskRequest = {
   start_date?: string | null;
   deadline?: string | null;
   primary_assignee_id?: string | null;
+  parent_task_id?: string | null;
   collaborator_ids?: string[];
 };
 
@@ -128,6 +130,10 @@ export type UpdateTaskRequest = {
 export type ChangeTaskStatusRequest = {
   to_status_id: string;
   version: number;
+};
+
+export type DeleteTaskRequest = {
+  confirm_cascade_subtasks?: boolean;
 };
 
 export type WorkflowMetadata = {

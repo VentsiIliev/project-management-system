@@ -14,6 +14,7 @@ import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
 import { useCreateProjectTaskMutation } from "../hooks/useCreateProjectTaskMutation";
 import { useAddProjectMemberMutation } from "../hooks/useAddProjectMemberMutation";
 import { useChangeTaskStatusMutation } from "../hooks/useChangeTaskStatusMutation";
+import { useDeleteTaskMutation } from "../hooks/useDeleteTaskMutation";
 import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectMembersQuery } from "../hooks/useProjectMembersQuery";
@@ -84,13 +85,16 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const selectedTaskQuery = useTaskQuery(selectedTaskId);
   const updateTaskMutation = useUpdateTaskMutation(projectId, selectedTaskId);
   const changeTaskStatusMutation = useChangeTaskStatusMutation(projectId, selectedTaskId);
+  const deleteTaskMutation = useDeleteTaskMutation(projectId, selectedTaskId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
   const [showAddMemberSuccess, setShowAddMemberSuccess] = useState(false);
   const [showTaskSuccess, setShowTaskSuccess] = useState(false);
   const [showTaskUpdateSuccess, setShowTaskUpdateSuccess] = useState(false);
   const [showTaskStatusSuccess, setShowTaskStatusSuccess] = useState(false);
+  const [showTaskDeleteSuccess, setShowTaskDeleteSuccess] = useState(false);
   const [taskConflictMessage, setTaskConflictMessage] = useState<string | null>(null);
+  const [confirmCascadeDelete, setConfirmCascadeDelete] = useState(false);
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, ProjectMemberRole>>({});
   const [memberActionSuccess, setMemberActionSuccess] = useState<string | null>(null);
   const [activeRoleUpdateUserId, setActiveRoleUpdateUserId] = useState<string | null>(null);
@@ -151,6 +155,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       deadline: "",
       primary_assignee_id: "",
       priority_id: "",
+      parent_task_id: "",
     },
     resolver: zodResolver(createProjectTaskSchema),
   });
@@ -200,6 +205,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const changeTaskStatusError = isApiError(changeTaskStatusMutation.error)
     ? changeTaskStatusMutation.error
     : null;
+  const deleteTaskError = isApiError(deleteTaskMutation.error) ? deleteTaskMutation.error : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
   const serverStartDateError = getDetailMessages(projectError?.details.start_date)[0];
@@ -265,6 +271,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const serverTaskAssigneeError = getDetailMessages(
     createProjectTaskError?.details.primary_assignee_id,
   )[0];
+  const serverTaskParentError = getDetailMessages(createProjectTaskError?.details.parent_task_id)[0];
   const serverTaskFormError =
     createProjectTaskError &&
     !serverTaskTitleError &&
@@ -273,6 +280,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     !serverTaskDeadlineError &&
     !serverTaskPriorityError &&
     !serverTaskAssigneeError &&
+    !serverTaskParentError &&
     createProjectTaskError.code !== "PROJECT_PERMISSION_DENIED"
       ? createProjectTaskError.message
       : null;
@@ -293,6 +301,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     user.is_admin || currentProjectMember?.role === "PROJECT_MANAGER";
   const canEditTaskDescription = canManageTaskPlanning || Boolean(currentProjectMember);
   const canChangeTaskStatus = canEditTaskDescription;
+  const selectedParentTask =
+    selectedTaskQuery.data?.parent_task_id
+      ? projectTasksQuery.data?.find((task) => task.id === selectedTaskQuery.data?.parent_task_id) ?? null
+      : null;
   const availableStatusTransitions =
     workflowMetadataQuery.data?.transitions.filter(
       (transition) =>
@@ -343,6 +355,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
 
   useEffect(() => {
     setShowTaskSuccess(false);
+    setShowTaskDeleteSuccess(false);
     createProjectTaskMutation.reset();
     resetTaskForm({
       title: "",
@@ -351,6 +364,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       start_date: "",
       deadline: "",
       primary_assignee_id: "",
+      parent_task_id: "",
     });
   }, [projectId, resetTaskForm]);
 
@@ -361,7 +375,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     }
 
     if (selectedTaskId && !projectTasksQuery.data.some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(projectTasksQuery.data[0]!.id);
+      setSelectedTaskId(null);
     }
   }, [projectTasksQuery.data, selectedTaskId]);
 
@@ -369,8 +383,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     setShowTaskUpdateSuccess(false);
     setShowTaskStatusSuccess(false);
     setTaskConflictMessage(null);
+    setConfirmCascadeDelete(false);
     updateTaskMutation.reset();
     changeTaskStatusMutation.reset();
+    deleteTaskMutation.reset();
   }, [selectedTaskId]);
 
   useEffect(() => {
@@ -530,7 +546,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
           <div className="panel-heading">
             <h2 className="panel-heading__title">Project tasks</h2>
             <p className="panel-heading__body">
-              Create the first tracked tasks inside the selected project and keep them visible in the same workspace.
+              Create root tasks or one-level subtasks inside the selected project and keep them visible in the same workspace.
             </p>
           </div>
           {!projectId ? (
@@ -563,6 +579,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   className={`task-list__item${task.id === selectedTaskId ? " project-list__item--active" : ""}`}
                   key={task.id}
                   onClick={() => {
+                    setShowTaskDeleteSuccess(false);
                     setTaskConflictMessage(null);
                     setSelectedTaskId(task.id);
                   }}
@@ -575,6 +592,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     <span>{task.description || "No description yet."}</span>
                   </div>
                   <div className="task-list__meta">
+                    <span>{task.parent_task_id ? "Subtask" : "Root task"}</span>
                     <span className="task-status-pill">
                       {task.status.name}
                       {!task.status.is_active ? " (inactive)" : ""}
@@ -611,10 +629,13 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     start_date: values.start_date || null,
                     deadline: values.deadline || null,
                     primary_assignee_id: values.primary_assignee_id || null,
+                    parent_task_id: values.parent_task_id || null,
                   },
                   {
-                    onSuccess: () => {
+                    onSuccess: (task) => {
                       setShowTaskSuccess(true);
+                      setShowTaskDeleteSuccess(false);
+                      setSelectedTaskId(task.id);
                       resetTaskForm({
                         title: "",
                         description: "",
@@ -622,6 +643,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                         start_date: "",
                         deadline: "",
                         primary_assignee_id: values.primary_assignee_id,
+                        parent_task_id: values.parent_task_id,
                       });
                     },
                   },
@@ -684,6 +706,24 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   </span>
                 ) : null}
               </label>
+              <label className="field" htmlFor="task-parent">
+                <span className="field__label">Parent task</span>
+                <select className="field__input" id="task-parent" {...registerTask("parent_task_id")}>
+                  <option value="">Root task</option>
+                  {projectTasksQuery.data
+                    ?.filter((task) => task.parent_task_id === null)
+                    .map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.task_key} {task.title}
+                      </option>
+                    ))}
+                </select>
+                {taskErrors.parent_task_id?.message ?? serverTaskParentError ? (
+                  <span className="field__error" role="alert">
+                    {taskErrors.parent_task_id?.message ?? serverTaskParentError}
+                  </span>
+                ) : null}
+              </label>
               <div className="split-fields">
                 <Field
                   error={taskErrors.start_date?.message ?? serverTaskStartDateError}
@@ -715,7 +755,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
               ) : null}
               {showTaskSuccess ? (
                 <StatusMessage title="Task created">
-                  The project task list was updated with the new seeded TODO task.
+                  The project task list was updated with the new active task.
                 </StatusMessage>
               ) : null}
               <Button
@@ -732,13 +772,18 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
           <div className="panel-heading">
             <h2 className="panel-heading__title">Task detail</h2>
             <p className="panel-heading__body">
-              Open a task to inspect its workflow metadata, update allowed fields, and track status changes without
-              leaving the project workspace.
+              Open a task to inspect hierarchy and workflow metadata, update allowed fields, and manage deletion
+              without leaving the project workspace.
             </p>
           </div>
           {!projectId ? (
             <StatusMessage title="Task detail is unavailable">
               Select a project before opening task detail.
+            </StatusMessage>
+          ) : null}
+          {projectId && !selectedTaskId && showTaskDeleteSuccess ? (
+            <StatusMessage title="Task deleted">
+              The selected task was removed from the active project workspace.
             </StatusMessage>
           ) : null}
           {projectId && !selectedTaskId && !projectTasksQuery.isPending ? (
@@ -775,6 +820,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                 </p>
                 <dl className="details-list">
                   <div>
+                    <dt>Hierarchy</dt>
+                    <dd>{selectedTaskQuery.data.parent_task_id ? "Subtask" : "Root task"}</dd>
+                  </div>
+                  <div>
                     <dt>Status</dt>
                     <dd>
                       {selectedTaskQuery.data.status.name}
@@ -794,6 +843,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   <div>
                     <dt>Assignee</dt>
                     <dd>{selectedTaskQuery.data.primary_assignee?.name || "Unassigned"}</dd>
+                  </div>
+                  <div>
+                    <dt>Parent task</dt>
+                    <dd>{selectedParentTask ? `${selectedParentTask.task_key} ${selectedParentTask.title}` : "No parent task"}</dd>
                   </div>
                   <div>
                     <dt>Collaborators</dt>
@@ -824,6 +877,41 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     <dd>{selectedTaskQuery.data.version}</dd>
                   </div>
                 </dl>
+              </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Subtasks</h3>
+                {selectedTaskQuery.data.subtasks.length ? (
+                  <div className="task-list" role="list" aria-label="Subtasks">
+                    {selectedTaskQuery.data.subtasks.map((subtask) => (
+                      <button
+                        className={`task-list__item${subtask.id === selectedTaskId ? " project-list__item--active" : ""}`}
+                        key={subtask.id}
+                        onClick={() => {
+                          setShowTaskDeleteSuccess(false);
+                          setTaskConflictMessage(null);
+                          setSelectedTaskId(subtask.id);
+                        }}
+                        role="listitem"
+                        type="button"
+                      >
+                        <div className="task-list__identity">
+                          <span className="task-list__key">{subtask.task_key}</span>
+                          <strong>{subtask.title}</strong>
+                          <span>{subtask.description || "No description yet."}</span>
+                        </div>
+                        <div className="task-list__meta">
+                          <span className="task-status-pill">{subtask.status.name}</span>
+                          <span>{subtask.primary_assignee?.name || "Unassigned"}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <StatusMessage title="No subtasks">
+                    This task has no active subtasks yet.
+                  </StatusMessage>
+                )}
               </div>
 
               {taskConflictMessage ? (
@@ -1078,6 +1166,59 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   planning fields.
                 </StatusMessage>
               )}
+
+              {canManageTaskPlanning ? (
+                <div className="form-stack">
+                  <h3 className="card-title">Delete task</h3>
+                  {selectedTaskQuery.data.subtasks.length ? (
+                    <label className="field" htmlFor="confirm-cascade-delete">
+                      <span className="field__label">
+                        I understand this will also soft-delete all active subtasks.
+                      </span>
+                      <input
+                        checked={confirmCascadeDelete}
+                        className="field__input"
+                        id="confirm-cascade-delete"
+                        onChange={(event) => setConfirmCascadeDelete(event.target.checked)}
+                        type="checkbox"
+                      />
+                    </label>
+                  ) : null}
+                  {deleteTaskError?.code === "CASCADE_CONFIRMATION_REQUIRED" ? (
+                    <StatusMessage tone="error" title="Task deletion failed">
+                      {deleteTaskError.message}
+                    </StatusMessage>
+                  ) : null}
+                  {deleteTaskError?.code === "TASK_PERMISSION_DENIED" ? (
+                    <StatusMessage tone="error" title="Permission denied">
+                      {deleteTaskError.message}
+                    </StatusMessage>
+                  ) : null}
+                  <Button
+                    className="button button--danger"
+                    disabled={deleteTaskMutation.isPending}
+                    onClick={() => {
+                      setShowTaskDeleteSuccess(false);
+                      deleteTaskMutation.reset();
+                      deleteTaskMutation.mutate(
+                        {
+                          confirm_cascade_subtasks: confirmCascadeDelete,
+                        },
+                        {
+                          onSuccess: async () => {
+                            setShowTaskDeleteSuccess(true);
+                            setSelectedTaskId(null);
+                            await projectTasksQuery.refetch();
+                          },
+                        },
+                      );
+                    }}
+                    type="button"
+                  >
+                    {deleteTaskMutation.isPending ? "Deleting task..." : "Delete task"}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </Panel>

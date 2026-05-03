@@ -121,6 +121,7 @@ function taskListResponse(overrides?: Array<Record<string, unknown>>) {
         id: "task-1",
         task_key: "ENG-1",
         project_id: "project-1",
+        parent_task_id: null,
         title: "Initial task",
         description: "Track the first delivery item.",
         status: {
@@ -264,17 +265,14 @@ describe("projects flow", () => {
           body: {
             tasks: taskListResponse([
               {
+                ...taskListResponse()[0],
                 id: "task-9",
                 task_key: "ENG-9",
-                title: "Initial task",
-                description: "Track the first delivery item.",
                 status: workflowMetadataResponse().statuses[0],
                 priority: null,
                 primary_assignee: null,
                 start_date: null,
                 deadline: null,
-                version: 1,
-                created_at: "2026-05-01T10:00:00Z",
               },
             ]),
           },
@@ -566,8 +564,7 @@ describe("projects flow", () => {
           status: 201,
           body: {
             task: {
-              id: "task-1",
-              task_key: "ENG-1",
+              ...taskListResponse()[0],
               title: "Implement login",
               description: "Add authentication flow",
               status: workflowMetadataResponse().statuses[0],
@@ -576,10 +573,6 @@ describe("projects flow", () => {
                 id: "user-1",
                 name: "Jane Doe",
               },
-              start_date: "2026-05-01",
-              deadline: "2026-05-05",
-              version: 1,
-              created_at: "2026-05-01T10:00:00Z",
             },
           },
         });
@@ -615,6 +608,7 @@ describe("projects flow", () => {
         start_date: "2026-05-01",
         deadline: "2026-05-05",
         primary_assignee_id: "user-1",
+        parent_task_id: null,
       }),
     );
   });
@@ -984,6 +978,7 @@ describe("projects flow", () => {
           body: {
             tasks: taskListResponse([
               {
+                ...taskListResponse()[0],
                 id: "task-2",
                 task_key: "ENG-2",
                 title: "Visible task",
@@ -993,8 +988,6 @@ describe("projects flow", () => {
                 primary_assignee: null,
                 start_date: null,
                 deadline: null,
-                version: 1,
-                created_at: "2026-05-01T10:00:00Z",
               },
             ]),
           },
@@ -1071,6 +1064,156 @@ describe("projects flow", () => {
     expect(await screen.findByText(/task detail/i)).toBeInTheDocument();
     expect(await screen.findAllByText("Collaborator One")).toHaveLength(2);
     expect(await screen.findAllByText("Overdue")).toHaveLength(2);
+  });
+
+  it("creates a subtask from the project workspace", async () => {
+    let currentTasks = taskListResponse();
+    let selectedTask = {
+      ...currentTasks[0],
+      subtasks: [],
+    };
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { tasks: currentTasks } });
+      }
+      if (url === "/api/tasks/task-1") {
+        return jsonResponse({ body: { task: selectedTask } });
+      }
+      if (url === "/api/projects/project-1/tasks" && init?.method === "POST") {
+        const createdTask = {
+          ...taskListResponse()[0],
+          id: "task-2",
+          task_key: "ENG-2",
+          parent_task_id: "task-1",
+          title: "Subtask alpha",
+          subtasks: [],
+        };
+        currentTasks = [...currentTasks, createdTask];
+        selectedTask = {
+          ...selectedTask,
+          subtasks: [createdTask],
+        };
+        return jsonResponse({ body: { task: createdTask }, status: 201 });
+      }
+      if (url === "/api/tasks/task-2") {
+        return jsonResponse({
+          body: {
+            task: {
+              ...currentTasks[1],
+              subtasks: [],
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+    const taskTitleInputs = await screen.findAllByLabelText(/task title/i);
+    await user.type(taskTitleInputs[0]!, "Subtask alpha");
+    await user.selectOptions(screen.getByLabelText(/parent task/i), "task-1");
+    await user.click(screen.getByRole("button", { name: /create task/i }));
+
+    expect(await screen.findByText(/task created/i)).toBeInTheDocument();
+    expect(await screen.findAllByText("Subtask alpha")).toHaveLength(2);
+    const postCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/projects/project-1/tasks" && requestInit?.method === "POST",
+    );
+    expect(postCall?.[1]?.body).toBe(
+      JSON.stringify({
+        title: "Subtask alpha",
+        description: undefined,
+        priority_id: null,
+        start_date: null,
+        deadline: null,
+        primary_assignee_id: null,
+        parent_task_id: "task-1",
+      }),
+    );
+  });
+
+  it("deletes a parent task with cascade confirmation from task detail", async () => {
+    let currentTasks = taskListResponse([
+      {
+        ...taskListResponse()[0],
+        subtasks: [
+          {
+            ...taskListResponse()[0],
+            id: "task-2",
+            task_key: "ENG-2",
+            parent_task_id: "task-1",
+            title: "Nested task",
+            subtasks: [],
+          },
+        ],
+      },
+      {
+        ...taskListResponse()[0],
+        id: "task-2",
+        task_key: "ENG-2",
+        parent_task_id: "task-1",
+        title: "Nested task",
+        subtasks: [],
+      },
+    ]);
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/auth/me") {
+        return jsonResponse({ body: sessionResponse() });
+      }
+      if (url === "/api/projects") {
+        return jsonResponse({ body: { projects: projectListResponse() } });
+      }
+      if (url === "/api/projects/project-1") {
+        return jsonResponse({ body: { project: projectDetailResponse() } });
+      }
+      if (url === "/api/projects/project-1/members") {
+        return jsonResponse({ body: { members: memberListResponse() } });
+      }
+      if (url === "/api/projects/project-1/tasks" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { tasks: currentTasks } });
+      }
+      if (url === "/api/tasks/task-1" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({ body: { task: currentTasks[0] } });
+      }
+      if (url === "/api/tasks/task-1" && init?.method === "DELETE") {
+        currentTasks = [];
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const user = userEvent.setup();
+    renderApp(["/projects/project-1"], { cookie: "csrftoken=test-token; path=/" });
+
+    await user.click(await screen.findByText("Initial task"));
+    await user.click(await screen.findByLabelText(/i understand this will also soft-delete all active subtasks/i));
+    await user.click(screen.getByRole("button", { name: /delete task/i }));
+
+    expect(await screen.findByText(/task deleted/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no project tasks yet/i)).toBeInTheDocument();
+    const deleteCall = fetchMock.mock.calls.find(
+      ([requestUrl, requestInit]) =>
+        requestUrl === "/api/tasks/task-1" && requestInit?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.body).toBe(JSON.stringify({ confirm_cascade_subtasks: true }));
   });
 
   it("edits task fields and changes task status from the project workspace", async () => {

@@ -10,6 +10,7 @@ class CreateTaskSerializer(serializers.Serializer):
     start_date = serializers.DateField(required=False, allow_null=True)
     deadline = serializers.DateField(required=False, allow_null=True)
     primary_assignee_id = serializers.UUIDField(required=False, allow_null=True)
+    parent_task_id = serializers.UUIDField(required=False, allow_null=True)
     collaborator_ids = serializers.ListField(
         child=serializers.UUIDField(),
         required=False,
@@ -54,6 +55,10 @@ class ChangeTaskStatusSerializer(serializers.Serializer):
     version = serializers.IntegerField(min_value=1)
 
 
+class DeleteTaskSerializer(serializers.Serializer):
+    confirm_cascade_subtasks = serializers.BooleanField(required=False, default=False)
+
+
 class TaskStatusSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     name = serializers.CharField()
@@ -88,6 +93,7 @@ class TaskSerializer(serializers.Serializer):
     id = serializers.UUIDField(format="hex_verbose")
     task_key = serializers.CharField()
     project_id = serializers.UUIDField(format="hex_verbose")
+    parent_task_id = serializers.UUIDField(format="hex_verbose", allow_null=True)
     title = serializers.CharField()
     description = serializers.CharField(allow_null=True)
     status = serializers.SerializerMethodField()
@@ -161,7 +167,13 @@ class TaskSerializer(serializers.Serializer):
         return obj.deadline < timezone.localdate()
 
     def get_subtasks(self, obj: Task):
-        return []
+        subtasks = getattr(obj, "_prefetched_objects_cache", {}).get("subtasks")
+        if subtasks is None:
+            subtasks = obj.subtasks.select_related("primary_assignee", "priority", "status").prefetch_related(
+                "collaborators"
+            )
+
+        return TaskSerializer(subtasks, many=True).data
 
     def get_dependencies(self, obj: Task):
         return []

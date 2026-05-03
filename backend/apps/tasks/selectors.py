@@ -1,5 +1,16 @@
+from django.db.models import Prefetch
+
 from apps.projects.selectors import visible_projects_for_user
 from apps.tasks.models import Task, TaskPriority, TaskStatusTransition, TaskWorkflowStatus
+
+
+def _subtask_prefetch():
+    return Prefetch(
+        "subtasks",
+        queryset=Task.objects.select_related("primary_assignee", "priority", "status")
+        .prefetch_related("collaborators")
+        .order_by("task_number"),
+    )
 
 
 def visible_tasks_for_user(*, user, project_id=None):
@@ -9,9 +20,12 @@ def visible_tasks_for_user(*, user, project_id=None):
     if project_id is not None:
         queryset = queryset.filter(project_id=project_id)
 
-    return queryset.select_related("primary_assignee", "priority", "status").prefetch_related(
-        "collaborators"
-    )
+    return queryset.select_related(
+        "primary_assignee",
+        "priority",
+        "status",
+        "parent_task",
+    ).prefetch_related("collaborators", _subtask_prefetch())
 
 
 def list_task_workflow_statuses():

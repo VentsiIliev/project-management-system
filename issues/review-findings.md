@@ -52,6 +52,8 @@
 
 10. `US-060 Handle Loading, Empty, and Error States` is not a coherent standalone feature story in its current local form. It should be treated as a cross-slice frontend definition-of-done rule, starting with the next task-detail and task-edit workspace work.
 
+11. `US-022`, `US-023`, and `US-061` were still broad placeholders after the task-detail slice, but their real shared implementation surface is the task hierarchy and deletion contract. The working backlog is corrected to treat them as one reviewable subtask and task-lifecycle slice.
+
 ## What Was Added
 
 1. A local `issues` folder with one story file per user story.

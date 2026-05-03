@@ -101,6 +101,7 @@ def create_task(
     status_name=TaskStatusName.TODO,
     priority_name=None,
     deadline=None,
+    parent_task=None,
 ):
     project.task_counter += 1
     project.save(update_fields=["task_counter", "updated_at"])
@@ -112,6 +113,7 @@ def create_task(
         status=get_status(status_name),
         priority=get_priority(priority_name) if priority_name else None,
         primary_assignee=assignee,
+        parent_task=parent_task,
         created_by=created_by,
         deadline=deadline,
     )
@@ -126,6 +128,7 @@ def serialize_task(task: Task):
         "id": str(task.id),
         "task_key": task.task_key,
         "project_id": str(task.project_id),
+        "parent_task_id": str(task.parent_task_id) if task.parent_task_id else None,
         "title": task.title,
         "description": task.description,
         "status": serialize_status(task.status),
@@ -148,7 +151,12 @@ def serialize_task(task: Task):
         "deadline": task.deadline.isoformat() if task.deadline else None,
         "version": task.version,
         "created_at": task.created_at.isoformat().replace("+00:00", "Z"),
-        "subtasks": [],
+        "subtasks": [
+            serialize_task(subtask)
+            for subtask in task.subtasks.select_related("status", "priority", "primary_assignee")
+            .prefetch_related("collaborators")
+            .order_by("task_number")
+        ],
         "dependencies": [],
     }
 
@@ -293,6 +301,42 @@ def test_visible_project_member_can_view_task_detail():
     assert response.json() == {"task": serialize_task(task)}
 
 
+def test_task_detail_includes_active_subtasks_only():
+    admin_user = create_user(
+        email="task-detail-subtasks-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-detail-subtasks-member@example.com")
+    project = create_project(owner=admin_user, code="SUBD", name="Subtask Detail")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    parent_task = create_task(project=project, created_by=admin_user, title="Parent task")
+    visible_subtask = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Visible subtask",
+        parent_task=parent_task,
+    )
+    deleted_subtask = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Deleted subtask",
+        parent_task=parent_task,
+    )
+    deleted_subtask.deleted_at = timezone.now()
+    deleted_subtask.save(update_fields=["deleted_at", "updated_at"])
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/tasks/{parent_task.id}")
+
+    assert response.status_code == 200
+    assert response.json()["task"]["subtasks"] == [serialize_task(visible_subtask)]
+
+
 def test_non_member_cannot_view_task_detail():
     admin_user = create_user(
         email="task-detail-hidden-admin@example.com",
@@ -303,6 +347,36 @@ def test_non_member_cannot_view_task_detail():
     task = create_task(project=project, created_by=admin_user)
     client = APIClient()
     client.force_login(outsider_user)
+
+    response = client.get(f"/api/tasks/{task.id}")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "TASK_NOT_FOUND",
+            "message": "Task not found.",
+            "details": {},
+        }
+    }
+
+
+def test_soft_deleted_task_is_hidden_from_task_detail():
+    admin_user = create_user(
+        email="task-detail-deleted-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-detail-deleted-member@example.com")
+    project = create_project(owner=admin_user, code="DEL", name="Deleted Task Detail")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user)
+    task.deleted_at = timezone.now()
+    task.save(update_fields=["deleted_at", "updated_at"])
+    client = APIClient()
+    client.force_login(member_user)
 
     response = client.get(f"/api/tasks/{task.id}")
 
@@ -605,6 +679,117 @@ def test_create_task_rejects_invalid_date_range():
     }
 
 
+def test_project_manager_can_create_subtask_for_root_task():
+    admin_user = create_user(
+        email="subtask-create-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="subtask-create-manager@example.com")
+    project = create_project(owner=admin_user, code="SUB", name="Subtasks")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    parent_task = create_task(project=project, created_by=admin_user, title="Parent task")
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {
+            "title": "Child task",
+            "parent_task_id": str(parent_task.id),
+        },
+        format="json",
+    )
+
+    created_task = Task.objects.get(project=project, task_number=2)
+
+    assert response.status_code == 201
+    assert response.json() == {"task": serialize_task(created_task)}
+    assert created_task.parent_task_id == parent_task.id
+
+
+def test_create_subtask_rejects_parent_from_another_project():
+    admin_user = create_user(
+        email="subtask-parent-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="subtask-parent-manager@example.com")
+    project = create_project(owner=admin_user, code="SAM", name="Same Project")
+    other_project = create_project(owner=admin_user, code="OTH", name="Other Project")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    foreign_parent = create_task(project=other_project, created_by=admin_user, title="Foreign parent")
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {
+            "title": "Rejected child",
+            "parent_task_id": str(foreign_parent.id),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input",
+            "details": {
+                "parent_task_id": ["The parent task must belong to the same active project."],
+            },
+        }
+    }
+
+
+def test_create_subtask_rejects_parent_that_is_already_a_subtask():
+    admin_user = create_user(
+        email="subtask-depth-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="subtask-depth-manager@example.com")
+    project = create_project(owner=admin_user, code="DEP", name="Hierarchy")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    parent_task = create_task(project=project, created_by=admin_user, title="Parent")
+    subtask = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Child",
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.post(
+        f"/api/projects/{project.id}/tasks",
+        {
+            "title": "Grandchild",
+            "parent_task_id": str(subtask.id),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_HIERARCHY",
+            "message": "Subtasks cannot have their own children.",
+            "details": {},
+        }
+    }
+
+
 def test_workflow_metadata_endpoints_return_seeded_statuses_transitions_and_priorities():
     user = create_user(
         email="task-metadata-admin@example.com",
@@ -816,6 +1001,159 @@ def test_task_update_rejects_collaborator_who_is_not_active_project_member():
             },
         }
     }
+
+
+def test_project_manager_can_delete_task_without_subtasks():
+    admin_user = create_user(
+        email="task-delete-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-delete-manager@example.com")
+    project = create_project(owner=admin_user, code="TDL", name="Task Delete")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Disposable")
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.delete(f"/api/tasks/{task.id}", format="json")
+
+    task.refresh_from_db()
+
+    assert response.status_code == 204
+    assert task.deleted_at is not None
+
+
+def test_delete_task_requires_cascade_confirmation_when_subtasks_exist():
+    admin_user = create_user(
+        email="task-delete-confirm-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-delete-confirm-manager@example.com")
+    project = create_project(owner=admin_user, code="CFM", name="Cascade Confirm")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    parent_task = create_task(project=project, created_by=admin_user, title="Parent task")
+    create_task(
+        project=project,
+        created_by=admin_user,
+        title="Child task",
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.delete(f"/api/tasks/{parent_task.id}", format="json")
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "CASCADE_CONFIRMATION_REQUIRED",
+            "message": "Deleting this parent task requires confirmation to cascade to its subtasks.",
+            "details": {
+                "confirm_cascade_subtasks": [
+                    "This task has subtasks. Confirm cascade deletion to continue."
+                ]
+            },
+        }
+    }
+
+
+def test_delete_task_cascades_to_active_subtasks_with_confirmation():
+    admin_user = create_user(
+        email="task-delete-cascade-admin@example.com",
+        is_admin=True,
+    )
+    manager_user = create_user(email="task-delete-cascade-manager@example.com")
+    project = create_project(owner=admin_user, code="CAS", name="Cascade Delete")
+    create_membership(
+        project=project,
+        user=manager_user,
+        role=ProjectMembershipRole.PROJECT_MANAGER,
+    )
+    parent_task = create_task(project=project, created_by=admin_user, title="Parent task")
+    child_task = create_task(
+        project=project,
+        created_by=admin_user,
+        title="Child task",
+        parent_task=parent_task,
+    )
+    client = APIClient()
+    client.force_login(manager_user)
+
+    response = client.delete(
+        f"/api/tasks/{parent_task.id}",
+        {"confirm_cascade_subtasks": True},
+        format="json",
+    )
+
+    parent_task.refresh_from_db()
+    child_task.refresh_from_db()
+
+    assert response.status_code == 204
+    assert parent_task.deleted_at is not None
+    assert child_task.deleted_at is not None
+
+
+def test_team_member_cannot_delete_task():
+    admin_user = create_user(
+        email="task-delete-denied-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-delete-denied-member@example.com")
+    project = create_project(owner=admin_user, code="DEN", name="Delete Denied")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    task = create_task(project=project, created_by=admin_user, title="Protected task")
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.delete(f"/api/tasks/{task.id}", format="json")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "TASK_PERMISSION_DENIED",
+            "message": "You do not have permission to delete this task.",
+            "details": {},
+        }
+    }
+    task.refresh_from_db()
+    assert task.deleted_at is None
+
+
+def test_soft_deleted_task_is_hidden_from_project_task_list():
+    admin_user = create_user(
+        email="task-list-deleted-admin@example.com",
+        is_admin=True,
+    )
+    member_user = create_user(email="task-list-deleted-member@example.com")
+    project = create_project(owner=admin_user, code="HIDT", name="Hidden Tasks")
+    create_membership(
+        project=project,
+        user=member_user,
+        role=ProjectMembershipRole.TEAM_MEMBER,
+    )
+    visible_task = create_task(project=project, created_by=admin_user, title="Visible")
+    deleted_task = create_task(project=project, created_by=admin_user, title="Deleted")
+    deleted_task.deleted_at = timezone.now()
+    deleted_task.save(update_fields=["deleted_at", "updated_at"])
+    client = APIClient()
+    client.force_login(member_user)
+
+    response = client.get(f"/api/projects/{project.id}/tasks")
+
+    assert response.status_code == 200
+    assert response.json() == {"tasks": [serialize_task(visible_task)]}
 
 
 def test_project_member_can_change_task_status():

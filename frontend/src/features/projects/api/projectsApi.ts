@@ -4,6 +4,7 @@ import {
   type ChangeTaskStatusRequest,
   type CreateTaskRequest,
   type CreateProjectRequest,
+  type DeleteTaskRequest,
   type DeleteProjectRequest,
   type ProjectMember,
   type Project,
@@ -129,6 +130,13 @@ export async function changeTaskStatus(
     method: "POST",
   });
   return response.task;
+}
+
+export async function deleteTask(taskId: string, payload: DeleteTaskRequest): Promise<void> {
+  await apiRequest(`/tasks/${taskId}`, {
+    body: JSON.stringify(payload),
+    method: "DELETE",
+  });
 }
 
 export async function getWorkflowMetadata(): Promise<WorkflowMetadata> {

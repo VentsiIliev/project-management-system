@@ -19,6 +19,7 @@ from apps.tasks.selectors import visible_tasks_for_user
 from .policies import (
     can_change_task_status,
     can_create_task,
+    can_delete_task,
     can_update_task_description,
     can_update_task_planning,
 )
@@ -36,6 +37,10 @@ class TaskNotFoundError(Exception):
 
 
 class TaskCreatePermissionDeniedError(Exception):
+    pass
+
+
+class TaskDeletePermissionDeniedError(Exception):
     pass
 
 
@@ -71,6 +76,12 @@ class InvalidTaskCollaboratorError(Exception):
         self.details = details
 
 
+class InvalidTaskParentError(Exception):
+    def __init__(self, details: dict[str, list[str]]):
+        super().__init__("Invalid parent task.")
+        self.details = details
+
+
 class TaskOptimisticLockError(Exception):
     def __init__(self, *, current_version: int):
         super().__init__("Task was modified by another user. Please refresh and try again.")
@@ -78,6 +89,14 @@ class TaskOptimisticLockError(Exception):
 
 
 class InvalidTaskStatusTransitionError(Exception):
+    pass
+
+
+class InvalidTaskHierarchyError(Exception):
+    pass
+
+
+class TaskCascadeConfirmationRequiredError(Exception):
     pass
 
 
@@ -93,8 +112,8 @@ def list_tasks_for_actor(*, actor, project_id):
     project = get_project_for_actor(actor=actor, project_id=project_id)
     tasks = (
         Task.objects.filter(project=project)
-        .select_related("primary_assignee", "priority", "status")
-        .prefetch_related("collaborators")
+        .select_related("primary_assignee", "priority", "status", "parent_task")
+        .prefetch_related("collaborators", "subtasks__collaborators")
         .order_by("task_number")
     )
     return project, list(tasks)
@@ -214,6 +233,26 @@ def _validate_collaborators(*, project, collaborator_ids, primary_assignee):
     return [collaborators_by_id[str(collaborator_id)] for collaborator_id in unique_ids]
 
 
+def _validate_parent_task(*, actor, project, parent_task_id):
+    if parent_task_id is None:
+        return None
+
+    parent_task = (
+        visible_tasks_for_user(user=actor, project_id=project.id)
+        .filter(id=parent_task_id)
+        .first()
+    )
+    if parent_task is None:
+        raise InvalidTaskParentError(
+            {"parent_task_id": ["The parent task must belong to the same active project."]}
+        )
+
+    if parent_task.parent_task_id is not None:
+        raise InvalidTaskHierarchyError
+
+    return parent_task
+
+
 @transaction.atomic
 def _create_task_once(
     *,
@@ -225,6 +264,8 @@ def _create_task_once(
     start_date=None,
     deadline=None,
     primary_assignee_id=None,
+    collaborator_ids=None,
+    parent_task_id=None,
 ):
     project = (
         Project.objects.select_for_update()
@@ -243,6 +284,11 @@ def _create_task_once(
     _validate_task_date_range(start_date=start_date, deadline=deadline)
 
     priority = _validate_task_priority(priority_id=priority_id)
+    parent_task = _validate_parent_task(
+        actor=actor,
+        project=project,
+        parent_task_id=parent_task_id,
+    )
     primary_assignee = None
     if primary_assignee_id is not None:
         primary_assignee = _validate_active_project_member(
@@ -250,6 +296,11 @@ def _create_task_once(
             user_id=primary_assignee_id,
             field_name="primary_assignee_id",
         )
+    collaborators = _validate_collaborators(
+        project=project,
+        collaborator_ids=collaborator_ids or [],
+        primary_assignee=primary_assignee,
+    )
 
     next_task_number = project.task_counter + 1
     project.task_counter = next_task_number
@@ -264,10 +315,14 @@ def _create_task_once(
         status=get_default_task_status(),
         priority=priority,
         primary_assignee=primary_assignee,
+        parent_task=parent_task,
         created_by=actor,
         start_date=start_date,
         deadline=deadline,
     )
+    if collaborators:
+        task.collaborators.set(collaborators)
+
     return task
 
 
@@ -281,6 +336,8 @@ def create_task(
     start_date=None,
     deadline=None,
     primary_assignee_id=None,
+    collaborator_ids=None,
+    parent_task_id=None,
 ):
     for attempt in range(3):
         try:
@@ -293,12 +350,43 @@ def create_task(
                 start_date=start_date,
                 deadline=deadline,
                 primary_assignee_id=primary_assignee_id,
+                collaborator_ids=collaborator_ids,
+                parent_task_id=parent_task_id,
             )
         except OperationalError as exc:
             if "locked" not in str(exc).lower() or attempt == 2:
                 raise
 
             time.sleep(0.05)
+
+
+@transaction.atomic
+def delete_task(*, actor, task_id, confirm_cascade_subtasks: bool = False):
+    task = (
+        Task.objects.select_for_update()
+        .select_related("project")
+        .filter(id=task_id, project__in=visible_projects_for_user(user=actor))
+        .first()
+    )
+    if task is None:
+        raise TaskNotFoundError
+
+    if not can_delete_task(user=actor, project=task.project):
+        raise TaskDeletePermissionDeniedError
+
+    active_subtasks = list(
+        Task.objects.select_for_update()
+        .filter(parent_task=task)
+        .order_by("task_number")
+    )
+    if active_subtasks and not confirm_cascade_subtasks:
+        raise TaskCascadeConfirmationRequiredError
+
+    deleted_at = timezone.now()
+    Task.all_objects.filter(id__in=[task.id, *[subtask.id for subtask in active_subtasks]]).update(
+        deleted_at=deleted_at,
+        updated_at=deleted_at,
+    )
 
 
 @transaction.atomic
@@ -317,8 +405,8 @@ def update_task(
 ):
     task = (
         Task.objects.select_for_update()
-        .select_related("project", "primary_assignee", "priority", "status")
-        .prefetch_related("collaborators")
+        .select_related("project", "primary_assignee", "priority", "status", "parent_task")
+        .prefetch_related("collaborators", "subtasks__collaborators")
         .filter(id=task_id, project__in=visible_projects_for_user(user=actor))
         .first()
     )
@@ -411,8 +499,8 @@ def update_task(
         task.collaborators.set(next_collaborators)
 
     return (
-        Task.objects.select_related("primary_assignee", "priority", "status")
-        .prefetch_related("collaborators")
+        Task.objects.select_related("primary_assignee", "priority", "status", "parent_task")
+        .prefetch_related("collaborators", "subtasks__collaborators")
         .get(id=task.id)
     )
 
@@ -427,8 +515,8 @@ def change_task_status(
 ):
     task = (
         Task.objects.select_for_update()
-        .select_related("project", "primary_assignee", "priority", "status")
-        .prefetch_related("collaborators")
+        .select_related("project", "primary_assignee", "priority", "status", "parent_task")
+        .prefetch_related("collaborators", "subtasks__collaborators")
         .filter(id=task_id, project__in=visible_projects_for_user(user=actor))
         .first()
     )
@@ -458,7 +546,7 @@ def change_task_status(
     task.save(update_fields=["status", "version", "updated_at"])
 
     return (
-        Task.objects.select_related("primary_assignee", "priority", "status")
-        .prefetch_related("collaborators")
+        Task.objects.select_related("primary_assignee", "priority", "status", "parent_task")
+        .prefetch_related("collaborators", "subtasks__collaborators")
         .get(id=task.id)
     )

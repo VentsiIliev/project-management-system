@@ -9,6 +9,7 @@ export const createProjectTaskSchema = z
     start_date: z.string().optional(),
     deadline: z.string().optional(),
     primary_assignee_id: z.string().optional(),
+    parent_task_id: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.start_date && value.deadline && value.deadline < value.start_date) {

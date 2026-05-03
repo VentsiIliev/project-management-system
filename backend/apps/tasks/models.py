@@ -127,6 +127,13 @@ class Task(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_tasks",
     )
+    parent_task = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name="subtasks",
+    )
     collaborators = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through="TaskCollaborator",
@@ -164,12 +171,20 @@ class Task(models.Model):
                 ),
                 name="task_deadline_on_or_after_start_date",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(parent_task__isnull=True)
+                    | ~models.Q(parent_task=models.F("id"))
+                ),
+                name="task_parent_task_cannot_reference_self",
+            ),
         ]
         indexes = [
             models.Index(fields=["project"]),
             models.Index(fields=["status"]),
             models.Index(fields=["priority"]),
             models.Index(fields=["primary_assignee"]),
+            models.Index(fields=["parent_task"]),
             models.Index(fields=["deadline"]),
             models.Index(fields=["deleted_at"]),
             models.Index(fields=["task_key"]),

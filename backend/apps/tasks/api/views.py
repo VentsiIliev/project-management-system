@@ -6,15 +6,20 @@ from apps.tasks.domain.services import (
     UNSET,
     change_task_status,
     create_task,
+    delete_task,
     get_task_for_actor,
     InvalidTaskAssigneeError,
     InvalidTaskCollaboratorError,
     InvalidTaskDateRangeError,
+    InvalidTaskHierarchyError,
+    InvalidTaskParentError,
     InvalidTaskPriorityError,
     InvalidTaskStatusTransitionError,
     list_tasks_for_actor,
     TaskNotFoundError,
+    TaskCascadeConfirmationRequiredError,
     TaskCreatePermissionDeniedError,
+    TaskDeletePermissionDeniedError,
     TaskOptimisticLockError,
     TaskProjectNotFoundError,
     TaskStatusChangePermissionDeniedError,
@@ -30,6 +35,7 @@ from apps.tasks.selectors import (
 from .serializers import (
     ChangeTaskStatusSerializer,
     CreateTaskSerializer,
+    DeleteTaskSerializer,
     TaskPrioritySerializer,
     TaskSerializer,
     TaskStatusSerializer,
@@ -88,6 +94,8 @@ class ProjectTaskListCreateView(APIView):
                 start_date=serializer.validated_data.get("start_date"),
                 deadline=serializer.validated_data.get("deadline"),
                 primary_assignee_id=serializer.validated_data.get("primary_assignee_id"),
+                collaborator_ids=serializer.validated_data.get("collaborator_ids"),
+                parent_task_id=serializer.validated_data.get("parent_task_id"),
             )
         except TaskProjectNotFoundError:
             return error_response(
@@ -122,6 +130,27 @@ class ProjectTaskListCreateView(APIView):
                 code="VALIDATION_ERROR",
                 message="Invalid input",
                 details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except InvalidTaskCollaboratorError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except InvalidTaskParentError as exc:
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=exc.details,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except InvalidTaskHierarchyError:
+            return error_response(
+                code="INVALID_HIERARCHY",
+                message="Subtasks cannot have their own children.",
+                details={},
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -205,6 +234,50 @@ class TaskDetailView(APIView):
             )
 
         return Response({"task": TaskSerializer(task).data}, status=status.HTTP_200_OK)
+
+    def delete(self, request, task_id):
+        serializer = DeleteTaskSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response(
+                code="VALIDATION_ERROR",
+                message="Invalid input",
+                details=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            delete_task(
+                actor=request.user,
+                task_id=task_id,
+                confirm_cascade_subtasks=serializer.validated_data["confirm_cascade_subtasks"],
+            )
+        except TaskNotFoundError:
+            return error_response(
+                code="TASK_NOT_FOUND",
+                message="Task not found.",
+                details={},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except TaskDeletePermissionDeniedError:
+            return error_response(
+                code="TASK_PERMISSION_DENIED",
+                message="You do not have permission to delete this task.",
+                details={},
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        except TaskCascadeConfirmationRequiredError:
+            return error_response(
+                code="CASCADE_CONFIRMATION_REQUIRED",
+                message="Deleting this parent task requires confirmation to cascade to its subtasks.",
+                details={
+                    "confirm_cascade_subtasks": [
+                        "This task has subtasks. Confirm cascade deletion to continue."
+                    ]
+                },
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TaskStatusUpdateView(APIView):
