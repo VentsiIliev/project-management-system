@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { removeProjectMember } from "../api/projectsApi";
 import { type Project, type ProjectMember } from "../types";
+import { projectActivityQueryKey } from "./useProjectActivityQuery";
 import { projectQueryKey } from "./useProjectQuery";
 import { projectMembersQueryKey } from "./useProjectMembersQuery";
 import { projectsQueryKey } from "./useProjectsQuery";
@@ -36,14 +37,20 @@ export function useRemoveProjectMemberMutation(projectId: string | null) {
         currentProjects ?? [],
       );
 
-      await queryClient.invalidateQueries({
-        queryKey: projectQueryKey(projectId),
-        exact: true,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: projectsQueryKey,
-        exact: true,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: projectQueryKey(projectId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: projectActivityQueryKey(projectId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: projectsQueryKey,
+          exact: true,
+        }),
+      ]);
     },
   });
 }

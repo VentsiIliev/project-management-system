@@ -1,54 +1,42 @@
-﻿# US-041 - View Task Activity  ## Metadata - Area: 11. Activity Logs - GitHub labels: `user-story`, `mvp`, `area:activity` - Suggested status: `Backlog` - Suggested wave: `Wave 4` - Depends on: US-040, US-019 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** project member  
-**I want** to view task activity  
+# US-041 - View Task Activity
+
+## Metadata
+- Area: 11. Activity Logs
+- GitHub labels: `user-story`, `mvp`, `area:activity`
+- Status: `:owner-review`
+- Suggested wave: `Wave 4`
+- Depends on: US-040, US-019
+- Parallelization note: Implement with `US-040` on the same task detail surface.
+
+## User Story
+**As a** project member
+**I want** to view task activity
 **So that** I can understand what changed over time.
 
 ### Acceptance Criteria
 
-**Given** I have access to the task  
-**When** I open task activity  
+**Given** I have access to the task
+**When** I open task activity
 **Then** I can view activity log entries for that task.
 
-**Given** I do not have task access  
-**When** I attempt to view task activity  
-**Then** the system denies access.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Given** I do not have task access
+**When** I attempt to view task activity
+**Then** the system denies access.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [ ] Add `GET /tasks/{task_id}/activity`.
+- [ ] Reuse task visibility rules, while still allowing activity reads for soft-deleted tasks inside visible projects.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [ ] Extend the existing task detail panel with a task-activity section.
+- [ ] Show loading, empty, and unavailable states.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Tests
+- [ ] Add integration coverage for visible and denied task activity reads.
+- [ ] Add frontend coverage for rendering task activity in task detail.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Definition Of Done
+- Task activity is visible in the existing workspace for accessible tasks.
+- Soft-deleted task activity remains readable for users who still have project visibility.

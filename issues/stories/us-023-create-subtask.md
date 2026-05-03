@@ -1,8 +1,19 @@
-﻿# US-023 - Create Subtask  ## Metadata - Area: 6. Subtasks - GitHub labels: `user-story`, `mvp`, `area:subtasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-023 - Create Subtask
+
+## Metadata
+- Area: `6. Subtasks`
+- GitHub labels: `user-story`, `mvp`, `area:subtasks`
+- Status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-017`, `US-018`, `US-069`
+- Parallelization note: Implement together with `US-022` and `US-061` because the subtask hierarchy changes the task model, task create contract, task detail response, and delete semantics in the same code path.
+
+## User Story
+**As an** Admin or Project Manager  
 **I want** to create subtasks  
 **So that** large tasks can be broken into smaller pieces.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to create subtasks  
 **When** I create a task with a valid parent task in the same project  
@@ -14,45 +25,24 @@
 
 **Given** the parent task is already a subtask  
 **When** I attempt to create another child under it  
-**Then** the system rejects the request with `INVALID_HIERARCHY`.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system rejects the request with `INVALID_HIERARCHY`.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Execution Slice
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [ ] Add parent-task linkage on `Task` with one-level hierarchy enforcement.
+- [ ] Extend task creation to accept optional `parent_task_id`.
+- [ ] Validate that the parent task is visible, active, and in the same project.
+- [ ] Reject attempts to create children under an existing subtask.
+- [ ] Extend task detail serialization to include active subtasks so the workspace can inspect hierarchy.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [ ] Extend the task creation form with optional parent-task selection from the current project.
+- [ ] Render visible subtasks inside the task detail panel.
+- [ ] Allow opening a subtask from the parent task detail view without leaving the project workspace.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
-
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+### Tests
+- [ ] Cover creating a valid one-level subtask.
+- [ ] Cover rejecting a parent task from another project or invisible project.
+- [ ] Cover rejecting children under an existing subtask with `INVALID_HIERARCHY`.
+- [ ] Cover task detail returning active subtasks only.

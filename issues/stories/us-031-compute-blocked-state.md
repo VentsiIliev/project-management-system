@@ -1,56 +1,46 @@
-﻿# US-031 - Compute Blocked State  ## Metadata - Area: 8. Dependencies and Blocking - GitHub labels: `user-story`, `mvp`, `area:dependencies` - Suggested status: `Backlog` - Suggested wave: `Wave 4` - Depends on: US-029, US-026 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** user  
-**I want** blocked state to be computed automatically  
+# US-031 - Compute Blocked State
+
+## Metadata
+- Area: 8. Dependencies and Blocking
+- GitHub labels: `user-story`, `mvp`, `area:dependencies`
+- Status: `:owner-review`
+- Suggested wave: `Wave 4`
+- Depends on: US-029, US-026
+- Parallelization note: Implement together with `US-027` on top of the same computed dependency state.
+
+## User Story
+**As a** user
+**I want** blocked state to be computed automatically
 **So that** task status remains accurate.
 
 ### Acceptance Criteria
 
-**Given** a task depends on another task that is not final  
-**When** I view the task  
+**Given** a task depends on another task that is not final
+**When** I view the task
 **Then** the task shows as blocked.
 
-**Given** all dependencies are final  
-**When** I view the task  
+**Given** all dependencies are final
+**When** I view the task
 **Then** the task does not show as blocked.
 
-**Given** a task has no dependencies  
-**When** I view the task  
-**Then** the task does not show as blocked.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Given** a task has no dependencies
+**When** I view the task
+**Then** the task does not show as blocked.
 
-### Database
-- [ ] Create/maintain task dependency table with unique pair and no-self check.
-- [ ] Add indexes for dependency and reverse-dependency lookup.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement dependency add/remove/list service inside a transaction.
-- [ ] Validate same-project dependencies, no duplicates, no self-dependency, and acyclic graph.
-- [ ] Compute blocked state from non-final dependency statuses; never store BLOCKED as a status.
-- [ ] Block invalid status changes when dependencies are unresolved.
+### Backend
+- [ ] Compute blocked state from active dependency targets with non-final statuses.
+- [ ] Keep `BLOCKED` as computed read state only, not a stored workflow status.
+- [ ] Populate dependency lists on task list and task detail responses.
 
-### Frontend/UI
-- [ ] Show blocked indicators on task detail, Kanban, Gantt, and My Tasks.
-- [ ] Disable/rollback UI actions that violate dependency rules.
-- [ ] Display structured dependency errors and Gantt conflict warnings.
+### Frontend
+- [ ] Render blocked indicators and dependency lists in the current task workspace.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test same-project, duplicate, self, and circular dependency rejection.
-- [ ] Integration test blocked status transition behavior and dependency race conditions.
+### Tests
+- [ ] Add integration coverage for blocked and unblocked read states.
+- [ ] Add frontend coverage for blocked indicator rendering.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Definition Of Done
+- `is_blocked` is derived from dependencies instead of stored state.
+- Task list and task detail responses expose the same blocked-state behavior.

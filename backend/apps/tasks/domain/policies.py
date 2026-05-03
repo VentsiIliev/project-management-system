@@ -41,6 +41,14 @@ def can_update_task_planning(*, user, project) -> bool:
     return bool(membership and membership.role == ProjectMembershipRole.PROJECT_MANAGER)
 
 
+def can_delete_task(*, user, project) -> bool:
+    return can_update_task_planning(user=user, project=project)
+
+
+def can_manage_task_dependencies(*, user, project) -> bool:
+    return can_update_task_planning(user=user, project=project)
+
+
 def can_update_task_description(*, user, project) -> bool:
     if (
         not _is_active_authorized_user(user)

@@ -127,6 +127,13 @@ class Task(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_tasks",
     )
+    parent_task = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name="subtasks",
+    )
     collaborators = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through="TaskCollaborator",
@@ -164,12 +171,20 @@ class Task(models.Model):
                 ),
                 name="task_deadline_on_or_after_start_date",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(parent_task__isnull=True)
+                    | ~models.Q(parent_task=models.F("id"))
+                ),
+                name="task_parent_task_cannot_reference_self",
+            ),
         ]
         indexes = [
             models.Index(fields=["project"]),
             models.Index(fields=["status"]),
             models.Index(fields=["priority"]),
             models.Index(fields=["primary_assignee"]),
+            models.Index(fields=["parent_task"]),
             models.Index(fields=["deadline"]),
             models.Index(fields=["deleted_at"]),
             models.Index(fields=["task_key"]),
@@ -210,3 +225,39 @@ class TaskCollaborator(models.Model):
 
     def __str__(self) -> str:
         return f"{self.task_id}:{self.user_id}"
+
+
+class TaskDependency(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="dependency_links",
+    )
+    depends_on_task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="reverse_dependency_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "task_dependencies"
+        ordering = ["task_id", "depends_on_task_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task", "depends_on_task"],
+                name="unique_task_dependency",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(task=models.F("depends_on_task")),
+                name="task_dependency_no_self_reference",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["task"]),
+            models.Index(fields=["depends_on_task"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.task_id}->{self.depends_on_task_id}"

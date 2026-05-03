@@ -1,54 +1,49 @@
-﻿# US-024 - Parent Completion Requires Completed Subtasks  ## Metadata - Area: 6. Subtasks - GitHub labels: `user-story`, `mvp`, `area:subtasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-023, US-026 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As a** user  
-**I want** parent tasks to require completed subtasks before completion  
+# US-024 - Parent Completion Requires Completed Subtasks
+
+## Metadata
+- Area: 6. Subtasks
+- GitHub labels: `user-story`, `mvp`, `area:subtasks`
+- Status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: US-023, US-026
+- Parallelization note: Implement together with `US-025` because both rules share the same status-change transaction and task detail response surface.
+
+## User Story
+**As a** user
+**I want** parent tasks to require completed subtasks before completion
 **So that** parent progress accurately reflects child work.
 
 ### Acceptance Criteria
 
-**Given** a parent task has incomplete subtasks  
-**When** I attempt to move the parent to DONE  
+**Given** a parent task has incomplete subtasks
+**When** I attempt to move the parent to DONE
 **Then** the system rejects the transition with `SUBTASKS_INCOMPLETE`.
 
-**Given** all subtasks are DONE  
-**When** I move the parent task to DONE  
-**Then** the system allows the transition if all other rules pass.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Given** all subtasks are DONE
+**When** I move the parent task to DONE
+**Then** the system allows the transition if all other rules pass.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Execution Breakdown
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [ ] Enforce the rule inside the existing task status-change transaction.
+- [ ] Treat only active subtasks as part of the completion gate.
+- [ ] Return a structured `SUBTASKS_INCOMPLETE` error from the existing status endpoint.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [ ] Surface the structured error in the existing task detail status-action panel.
+- [ ] Keep the current transition list UI and avoid adding a second workflow surface.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
+### Tests
+- [ ] Add integration coverage for parent DONE rejection with at least one active non-final subtask.
+- [ ] Add integration coverage for successful parent completion when all active subtasks are final.
+- [ ] Add frontend coverage for the visible status-change failure state.
 
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
+## Dependencies And Follow-Up
+- Implement with `US-025` in the same slice.
+- Do not add activity-log writes here; that follow-up belongs to `US-040` and `US-041`.
 
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+## Definition Of Done
+- Parent tasks cannot move to `DONE` while any active subtask is non-final.
+- The existing status endpoint returns a stable structured error contract.
+- The workspace task detail view shows the failure state without a full-page fallback.

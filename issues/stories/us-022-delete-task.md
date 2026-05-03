@@ -1,8 +1,19 @@
-﻿# US-022 - Delete Task  ## Metadata - Area: 5. Task Management - GitHub labels: `user-story`, `mvp`, `area:tasks` - Suggested status: `Backlog` - Suggested wave: `Wave 3` - Depends on: US-017 - Parallelization note: Start once dependencies are done; run in parallel with other stories in the same wave that do not share blocking dependencies.  ## User Story **As an** Admin or Project Manager  
+# US-022 - Delete Task
+
+## Metadata
+- Area: `5. Task Management`
+- GitHub labels: `user-story`, `mvp`, `area:tasks`
+- Status: `:owner-review`
+- Suggested wave: `Wave 3`
+- Depends on: `US-017`, `US-023`
+- Parallelization note: Implement together with `US-023` and `US-061` because task deletion, subtask hierarchy, and hidden deleted-task reads share the same model, API, selector, and workspace UI surface.
+
+## User Story
+**As an** Admin or Project Manager  
 **I want** to delete tasks  
 **So that** obsolete work is hidden from normal workflows.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 **Given** I have permission to delete tasks  
 **When** I delete a task without subtasks  
@@ -18,45 +29,26 @@
 
 **Given** I am a Team Member  
 **When** I attempt to delete a task  
-**Then** the system denies permission.  ## Implementation Breakdown **Kanban lane:** Backlog â†’ Ready â†’ Red â†’ Green â†’ Refactor â†’ Review / QA â†’ Done  
-**Definition of Done:** All listed layer tasks are complete, reviewed, tested, and traceable to the story acceptance criteria.
+**Then** the system denies permission.
 
-### Database
-- [ ] Create/maintain task, status, status transition, priority, collaborator schema as required.
-- [ ] Add UUID keys, task number uniqueness, version field, indexes, date checks, and FK rules.
+## Execution Slice
 
-### Backend/API
-- [ ] Implement task create/read/update/delete/status endpoints.
-- [ ] Generate task numbers atomically and task keys from immutable project code.
-- [ ] Enforce role-based field permissions and assignment/collaborator membership rules.
-- [ ] Enforce one-level subtask hierarchy, parent completion, parent auto-reopen, and overdue calculation.
-- [ ] Require optimistic version on mutating task endpoints and return structured conflicts.
-- [ ] Emit activity logs and notifications for task mutations.
+### Backend
+- [ ] Add task soft-delete service behavior for root tasks and subtasks.
+- [ ] Reject parent-task delete requests without `confirm_cascade_subtasks` when active subtasks exist.
+- [ ] Cascade soft-delete to active subtasks when confirmation is present.
+- [ ] Deny delete for Team Members while keeping `404` for invisible tasks.
+- [ ] Return structured delete errors for permission denial and missing cascade confirmation.
 
-### Frontend/UI
-- [ ] Build task forms, detail view, edit controls, status actions, subtask display, assignment controls.
-- [ ] Render blocked/overdue/priority/status/assignee/task-key data consistently.
-- [ ] Handle optimistic locking refresh-and-retry UX.
+### Frontend
+- [ ] Add task delete action to the workspace detail panel for Admins and Project Managers only.
+- [ ] Show subtask-aware confirmation UI before cascading parent-task deletion.
+- [ ] Remove deleted tasks from the visible project task list and clear the selected task when it disappears.
+- [ ] Surface structured delete errors without leaving stale selected-task state behind.
 
-### TDD â€” Red: Write Failing Tests First
-- [ ] Map each Given/When/Then acceptance criterion to automated tests.
-- [ ] Add happy-path tests before implementation.
-- [ ] Add validation, permission, and edge-case tests before implementation.
-- [ ] Run the tests and confirm they fail for the expected reason.
-- [ ] Unit test task validation, hierarchy, status transitions, overdue, assignment membership, and optimistic locking.
-- [ ] Integration test task creation/update/delete/status flows and concurrent mutations.
-
-### TDD â€” Green: Implement Minimum Passing Code
-- [ ] Implement only the smallest database/backend/frontend change needed to pass the failing tests.
-- [ ] Run the story-level test set and confirm all new tests pass.
-- [ ] Confirm existing regression tests still pass.
-
-### TDD â€” Refactor: Improve Safely
-- [ ] Refactor duplicated logic into services, validators, hooks, or shared components.
-- [ ] Confirm permissions, structured errors, soft-delete behavior, and edge cases remain covered.
-- [ ] Re-run unit, integration, and relevant frontend tests after refactoring.
-
-### Review / QA Checklist
-- [ ] Acceptance criteria from the user story are verified manually or by automated tests.
-- [ ] Structured API errors, permissions, and edge cases are validated where applicable.
-- [ ] Documentation or developer notes are updated if behavior is non-obvious.
+### Tests
+- [ ] Cover deleting a task without subtasks.
+- [ ] Cover rejecting parent delete without cascade confirmation.
+- [ ] Cover cascading parent delete with confirmation.
+- [ ] Cover Team Member denial.
+- [ ] Cover the workspace removing deleted tasks from normal visible state.

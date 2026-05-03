@@ -11,15 +11,27 @@ import { StatusMessage } from "../../../components/StatusMessage";
 import { AppShellPage } from "../../auth/pages/AppShellPage";
 import { type SessionUser } from "../../auth/types";
 import { useCreateProjectMutation } from "../hooks/useCreateProjectMutation";
+import { useCreateTaskCommentMutation } from "../hooks/useCreateTaskCommentMutation";
 import { useCreateProjectTaskMutation } from "../hooks/useCreateProjectTaskMutation";
 import { useAddProjectMemberMutation } from "../hooks/useAddProjectMemberMutation";
+import { useAddTaskDependencyMutation } from "../hooks/useAddTaskDependencyMutation";
 import { useChangeTaskStatusMutation } from "../hooks/useChangeTaskStatusMutation";
+import { useDeleteTaskMutation } from "../hooks/useDeleteTaskMutation";
 import { useDeleteProjectMutation } from "../hooks/useDeleteProjectMutation";
+import { useMarkAllNotificationsReadMutation } from "../hooks/useMarkAllNotificationsReadMutation";
+import { useMarkNotificationReadMutation } from "../hooks/useMarkNotificationReadMutation";
+import { useMyTasksQuery } from "../hooks/useMyTasksQuery";
+import { useNotificationsQuery } from "../hooks/useNotificationsQuery";
+import { useProjectActivityQuery } from "../hooks/useProjectActivityQuery";
 import { useProjectQuery } from "../hooks/useProjectQuery";
 import { useProjectMembersQuery } from "../hooks/useProjectMembersQuery";
 import { useProjectTasksQuery } from "../hooks/useProjectTasksQuery";
 import { useProjectsQuery } from "../hooks/useProjectsQuery";
 import { useRemoveProjectMemberMutation } from "../hooks/useRemoveProjectMemberMutation";
+import { useRemoveTaskDependencyMutation } from "../hooks/useRemoveTaskDependencyMutation";
+import { useTaskCommentsQuery } from "../hooks/useTaskCommentsQuery";
+import { useTaskCommentsSocket } from "../hooks/useTaskCommentsSocket";
+import { useTaskActivityQuery } from "../hooks/useTaskActivityQuery";
 import { useTaskQuery } from "../hooks/useTaskQuery";
 import { useUpdateTaskMutation } from "../hooks/useUpdateTaskMutation";
 import { useUpdateProjectMemberMutation } from "../hooks/useUpdateProjectMemberMutation";
@@ -71,8 +83,49 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const createProjectMutation = useCreateProjectMutation();
   const projectsQuery = useProjectsQuery();
   const projectQuery = useProjectQuery(projectId);
+  const [projectTaskPage, setProjectTaskPage] = useState(1);
+  const [projectTaskSearchDraft, setProjectTaskSearchDraft] = useState("");
+  const [projectTaskStatusDraft, setProjectTaskStatusDraft] = useState("");
+  const [projectTaskPriorityDraft, setProjectTaskPriorityDraft] = useState("");
+  const [projectTaskAssigneeDraft, setProjectTaskAssigneeDraft] = useState("");
+  const [projectTaskDeadlineFromDraft, setProjectTaskDeadlineFromDraft] = useState("");
+  const [projectTaskDeadlineToDraft, setProjectTaskDeadlineToDraft] = useState("");
+  const [projectTaskBlockedOnlyDraft, setProjectTaskBlockedOnlyDraft] = useState(false);
+  const [projectTaskFilters, setProjectTaskFilters] = useState({
+    assignee_id: "",
+    deadline_from: "",
+    deadline_to: "",
+    is_blocked: false,
+    priority_id: "",
+    search: "",
+    status_id: "",
+  });
+  const [myTasksPage, setMyTasksPage] = useState(1);
+  const [includeCollaboratorTasks, setIncludeCollaboratorTasks] = useState(false);
+  const [myTasksSortBy, setMyTasksSortBy] = useState<"deadline" | "priority">("deadline");
+  const [notificationPage, setNotificationPage] = useState(1);
+  const notificationsQuery = useNotificationsQuery(notificationPage, 10);
+  const markNotificationReadMutation = useMarkNotificationReadMutation();
+  const markAllNotificationsReadMutation = useMarkAllNotificationsReadMutation();
+  const projectActivityQuery = useProjectActivityQuery(projectQuery.data ? projectId : null);
   const projectMembersQuery = useProjectMembersQuery(projectQuery.data ? projectId : null);
-  const projectTasksQuery = useProjectTasksQuery(projectQuery.data ? projectId : null);
+  const projectTasksQuery = useProjectTasksQuery(projectQuery.data ? projectId : null, {
+    assignee_id: projectTaskFilters.assignee_id || undefined,
+    deadline_from: projectTaskFilters.deadline_from || undefined,
+    deadline_to: projectTaskFilters.deadline_to || undefined,
+    is_blocked: projectTaskFilters.is_blocked ? true : undefined,
+    page: projectTaskPage,
+    page_size: 10,
+    priority_id: projectTaskFilters.priority_id || undefined,
+    search: projectTaskFilters.search || undefined,
+    status_id: projectTaskFilters.status_id || undefined,
+  });
+  const myTasksQuery = useMyTasksQuery({
+    include_collaborator_tasks: includeCollaboratorTasks,
+    page: myTasksPage,
+    page_size: 10,
+    sort_by: myTasksSortBy,
+  });
   const workflowMetadataQuery = useWorkflowMetadataQuery(Boolean(projectId));
   const updateProjectMutation = useUpdateProjectMutation(projectId);
   const addProjectMemberMutation = useAddProjectMemberMutation(projectId);
@@ -82,15 +135,29 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const createProjectTaskMutation = useCreateProjectTaskMutation(projectId);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTaskQuery = useTaskQuery(selectedTaskId);
+  const taskCommentsQuery = useTaskCommentsQuery(selectedTaskQuery.data ? selectedTaskId : null);
+  const createTaskCommentMutation = useCreateTaskCommentMutation(selectedTaskId);
+  const taskCommentsConnectionState = useTaskCommentsSocket(
+    selectedTaskQuery.data ? selectedTaskId : null,
+    taskCommentsQuery.data,
+  );
+  const taskActivityQuery = useTaskActivityQuery(selectedTaskQuery.data ? selectedTaskId : null);
   const updateTaskMutation = useUpdateTaskMutation(projectId, selectedTaskId);
   const changeTaskStatusMutation = useChangeTaskStatusMutation(projectId, selectedTaskId);
+  const addTaskDependencyMutation = useAddTaskDependencyMutation(projectId, selectedTaskId);
+  const removeTaskDependencyMutation = useRemoveTaskDependencyMutation(projectId, selectedTaskId);
+  const deleteTaskMutation = useDeleteTaskMutation(projectId, selectedTaskId);
   const [lastCreatedProjectId, setLastCreatedProjectId] = useState<string | null>(null);
   const [showEditSuccess, setShowEditSuccess] = useState(false);
   const [showAddMemberSuccess, setShowAddMemberSuccess] = useState(false);
   const [showTaskSuccess, setShowTaskSuccess] = useState(false);
   const [showTaskUpdateSuccess, setShowTaskUpdateSuccess] = useState(false);
   const [showTaskStatusSuccess, setShowTaskStatusSuccess] = useState(false);
+  const [showTaskDeleteSuccess, setShowTaskDeleteSuccess] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
   const [taskConflictMessage, setTaskConflictMessage] = useState<string | null>(null);
+  const [confirmCascadeDelete, setConfirmCascadeDelete] = useState(false);
+  const [dependencyDraft, setDependencyDraft] = useState("");
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, ProjectMemberRole>>({});
   const [memberActionSuccess, setMemberActionSuccess] = useState<string | null>(null);
   const [activeRoleUpdateUserId, setActiveRoleUpdateUserId] = useState<string | null>(null);
@@ -151,6 +218,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       deadline: "",
       primary_assignee_id: "",
       priority_id: "",
+      parent_task_id: "",
     },
     resolver: zodResolver(createProjectTaskSchema),
   });
@@ -199,6 +267,16 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const updateTaskError = isApiError(updateTaskMutation.error) ? updateTaskMutation.error : null;
   const changeTaskStatusError = isApiError(changeTaskStatusMutation.error)
     ? changeTaskStatusMutation.error
+    : null;
+  const createTaskCommentError = isApiError(createTaskCommentMutation.error)
+    ? createTaskCommentMutation.error
+    : null;
+  const deleteTaskError = isApiError(deleteTaskMutation.error) ? deleteTaskMutation.error : null;
+  const addTaskDependencyError = isApiError(addTaskDependencyMutation.error)
+    ? addTaskDependencyMutation.error
+    : null;
+  const removeTaskDependencyError = isApiError(removeTaskDependencyMutation.error)
+    ? removeTaskDependencyMutation.error
     : null;
   const serverNameError = getDetailMessages(projectError?.details.name)[0];
   const serverCodeError = getDetailMessages(projectError?.details.code)[0];
@@ -265,6 +343,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   const serverTaskAssigneeError = getDetailMessages(
     createProjectTaskError?.details.primary_assignee_id,
   )[0];
+  const serverTaskParentError = getDetailMessages(createProjectTaskError?.details.parent_task_id)[0];
   const serverTaskFormError =
     createProjectTaskError &&
     !serverTaskTitleError &&
@@ -273,6 +352,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
     !serverTaskDeadlineError &&
     !serverTaskPriorityError &&
     !serverTaskAssigneeError &&
+    !serverTaskParentError &&
     createProjectTaskError.code !== "PROJECT_PERMISSION_DENIED"
       ? createProjectTaskError.message
       : null;
@@ -288,17 +368,34 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
 
   const activeProjectMembers =
     projectMembersQuery.data?.filter((member) => member.is_active) ?? [];
+  const projectTasks = projectTasksQuery.data?.tasks ?? [];
+  const myTasks = myTasksQuery.data?.tasks ?? [];
   const currentProjectMember = projectMembersQuery.data?.find((member) => member.user_id === user.id) ?? null;
   const canManageTaskPlanning =
     user.is_admin || currentProjectMember?.role === "PROJECT_MANAGER";
   const canEditTaskDescription = canManageTaskPlanning || Boolean(currentProjectMember);
   const canChangeTaskStatus = canEditTaskDescription;
+  const canManageTaskDependencies = canManageTaskPlanning;
+  const selectedParentTask =
+    selectedTaskQuery.data?.parent_task_id
+      ? projectTasks.find((task) => task.id === selectedTaskQuery.data?.parent_task_id) ?? null
+      : null;
   const availableStatusTransitions =
     workflowMetadataQuery.data?.transitions.filter(
       (transition) =>
         transition.is_active &&
         transition.from_status_id === selectedTaskQuery.data?.status.id,
     ) ?? [];
+  const availableDependencyTargets =
+    selectedTaskQuery.data && projectTasks.length
+      ? projectTasks.filter(
+          (task) =>
+            task.id !== selectedTaskQuery.data?.id &&
+            !selectedTaskQuery.data.dependencies.some((dependency) => dependency.id === task.id),
+        )
+      : [];
+  const unreadNotificationsCount =
+    notificationsQuery.data?.notifications.filter((notification) => !notification.is_read).length ?? 0;
 
   useEffect(() => {
     if (!projectQuery.data) {
@@ -342,7 +439,28 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
   }, [projectId, resetMemberForm]);
 
   useEffect(() => {
+    setProjectTaskPage(1);
+    setProjectTaskSearchDraft("");
+    setProjectTaskStatusDraft("");
+    setProjectTaskPriorityDraft("");
+    setProjectTaskAssigneeDraft("");
+    setProjectTaskDeadlineFromDraft("");
+    setProjectTaskDeadlineToDraft("");
+    setProjectTaskBlockedOnlyDraft(false);
+    setProjectTaskFilters({
+      assignee_id: "",
+      deadline_from: "",
+      deadline_to: "",
+      is_blocked: false,
+      priority_id: "",
+      search: "",
+      status_id: "",
+    });
+    setMyTasksPage(1);
+    setIncludeCollaboratorTasks(false);
+    setMyTasksSortBy("deadline");
     setShowTaskSuccess(false);
+    setShowTaskDeleteSuccess(false);
     createProjectTaskMutation.reset();
     resetTaskForm({
       title: "",
@@ -351,26 +469,34 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
       start_date: "",
       deadline: "",
       primary_assignee_id: "",
+      parent_task_id: "",
     });
   }, [projectId, resetTaskForm]);
 
   useEffect(() => {
-    if (!projectTasksQuery.data?.length) {
+    if (!projectTasks.length) {
       setSelectedTaskId(null);
       return;
     }
 
-    if (selectedTaskId && !projectTasksQuery.data.some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(projectTasksQuery.data[0]!.id);
+    if (selectedTaskId && !projectTasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(null);
     }
-  }, [projectTasksQuery.data, selectedTaskId]);
+  }, [projectTasks, selectedTaskId]);
 
   useEffect(() => {
     setShowTaskUpdateSuccess(false);
     setShowTaskStatusSuccess(false);
     setTaskConflictMessage(null);
+    setConfirmCascadeDelete(false);
+    setCommentDraft("");
+    setDependencyDraft("");
     updateTaskMutation.reset();
     changeTaskStatusMutation.reset();
+    createTaskCommentMutation.reset();
+    addTaskDependencyMutation.reset();
+    removeTaskDependencyMutation.reset();
+    deleteTaskMutation.reset();
   }, [selectedTaskId]);
 
   useEffect(() => {
@@ -495,33 +621,280 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
             </StatusMessage>
           ) : null}
           {projectQuery.data ? (
-            <div className="project-summary">
-              <div className="project-summary__code">{projectQuery.data.code}</div>
-              <h3 className="card-title">{projectQuery.data.name}</h3>
-              <p className="shell__summary project-summary__description">
-                {projectQuery.data.description || "No description was provided for this project."}
-              </p>
-              <dl className="details-list">
-                <div>
-                  <dt>Owner ID</dt>
-                  <dd>{projectQuery.data.owner_id}</dd>
+            <div className="form-stack">
+              <div className="project-summary">
+                <div className="project-summary__code">{projectQuery.data.code}</div>
+                <h3 className="card-title">{projectQuery.data.name}</h3>
+                <p className="shell__summary project-summary__description">
+                  {projectQuery.data.description || "No description was provided for this project."}
+                </p>
+                <dl className="details-list">
+                  <div>
+                    <dt>Owner ID</dt>
+                    <dd>{projectQuery.data.owner_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Task counter</dt>
+                    <dd>{projectQuery.data.task_counter}</dd>
+                  </div>
+                  <div>
+                    <dt>Start date</dt>
+                    <dd>{projectQuery.data.start_date || "Not set"}</dd>
+                  </div>
+                  <div>
+                    <dt>End date</dt>
+                    <dd>{projectQuery.data.end_date || "Not set"}</dd>
+                  </div>
+                </dl>
+                <div className="project-summary__rule">
+                  Project code is locked after creation and cannot be edited.
                 </div>
-                <div>
-                  <dt>Task counter</dt>
-                  <dd>{projectQuery.data.task_counter}</dd>
-                </div>
-                <div>
-                  <dt>Start date</dt>
-                  <dd>{projectQuery.data.start_date || "Not set"}</dd>
-                </div>
-                <div>
-                  <dt>End date</dt>
-                  <dd>{projectQuery.data.end_date || "Not set"}</dd>
-                </div>
-              </dl>
-              <div className="project-summary__rule">
-                Project code is locked after creation and cannot be edited.
               </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Project activity</h3>
+                {projectActivityQuery.isPending ? (
+                  <StatusMessage title="Loading activity">
+                    The project activity timeline is loading from the backend.
+                  </StatusMessage>
+                ) : null}
+                {isApiError(projectActivityQuery.error) ? (
+                  <StatusMessage tone="error" title="Project activity unavailable">
+                    {projectActivityQuery.error.message}
+                  </StatusMessage>
+                ) : null}
+                {!projectActivityQuery.isPending &&
+                !projectActivityQuery.error &&
+                !(projectActivityQuery.data?.length ?? 0) ? (
+                  <StatusMessage title="No project activity yet">
+                    New project, task, membership, and workflow events will appear here.
+                  </StatusMessage>
+                ) : null}
+                {projectActivityQuery.data?.length ? (
+                  <div className="task-list" role="list" aria-label="Project activity">
+                    {projectActivityQuery.data.map((entry) => (
+                      <div className="task-list__item" key={entry.id} role="listitem">
+                        <div className="task-list__identity">
+                          <strong>{entry.message}</strong>
+                          <span>{new Date(entry.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="task-list__meta">
+                          <span>{entry.event_type}</span>
+                          <span>{entry.actor_name ?? "System"}</span>
+                          <span>{entry.task_key ?? projectQuery.data.code}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </Panel>
+
+        <Panel>
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">Notifications</h2>
+            <p className="panel-heading__body">
+              Recent in-app task notifications stay inside the workspace for MVP. Unread items remain highlighted until
+              you mark them as read.
+            </p>
+          </div>
+          {notificationsQuery.isPending ? (
+            <StatusMessage title="Loading notifications">
+              Your newest in-app notifications are loading from the backend.
+            </StatusMessage>
+          ) : null}
+          {isApiError(notificationsQuery.error) ? (
+            <StatusMessage tone="error" title="Notifications unavailable">
+              {notificationsQuery.error.message}
+            </StatusMessage>
+          ) : null}
+          {!notificationsQuery.isPending &&
+          !notificationsQuery.error &&
+          !(notificationsQuery.data?.notifications.length ?? 0) ? (
+            <StatusMessage title="No notifications yet">
+              Task activity notifications will appear here once another relevant participant changes shared work.
+            </StatusMessage>
+          ) : null}
+          {notificationsQuery.data?.notifications.length ? (
+            <div className="form-stack">
+              <div className="member-actions">
+                <span>{unreadNotificationsCount ? `${unreadNotificationsCount} unread` : "All caught up"}</span>
+                <Button
+                  disabled={
+                    markAllNotificationsReadMutation.isPending || unreadNotificationsCount === 0
+                  }
+                  onClick={() => markAllNotificationsReadMutation.mutate()}
+                  type="button"
+                  variant="secondary"
+                >
+                  {markAllNotificationsReadMutation.isPending ? "Marking..." : "Mark all read"}
+                </Button>
+              </div>
+              <div className="task-list" role="list" aria-label="Notifications">
+                {notificationsQuery.data.notifications.map((notification) => (
+                  <div className="task-list__item" key={notification.id} role="listitem">
+                    <div className="task-list__identity">
+                      <strong>{notification.message}</strong>
+                      <span>{new Date(notification.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="task-list__meta">
+                      <span>{notification.event_type}</span>
+                      <span>{notification.is_read ? "Read" : "Unread"}</span>
+                      <Button
+                        disabled={markNotificationReadMutation.isPending || notification.is_read}
+                        onClick={() => markNotificationReadMutation.mutate(notification.id)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {notification.is_read ? "Read" : "Mark read"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="member-actions">
+                <Button
+                  disabled={
+                    notificationsQuery.data.pagination.has_previous === false
+                    || notificationsQuery.isPending
+                  }
+                  onClick={() =>
+                    setNotificationPage((currentPage) => Math.max(1, currentPage - 1))
+                  }
+                  type="button"
+                  variant="secondary"
+                >
+                  Previous notifications
+                </Button>
+                <span>
+                  Page {notificationsQuery.data.pagination.page} of {notificationsQuery.data.pagination.total_pages}
+                </span>
+                <Button
+                  disabled={
+                    notificationsQuery.data.pagination.has_next === false
+                    || notificationsQuery.isPending
+                  }
+                  onClick={() => setNotificationPage((currentPage) => currentPage + 1)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Next notifications
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </Panel>
+
+        <Panel>
+          <div className="panel-heading">
+            <h2 className="panel-heading__title">My Tasks</h2>
+            <p className="panel-heading__body">
+              Focus the workspace on tasks assigned to you, optionally include collaborator work, and sort by deadline or priority.
+            </p>
+          </div>
+          <div className="form-stack">
+            <label className="field" htmlFor="my-tasks-sort">
+              <span className="field__label">Sort My Tasks by</span>
+              <select
+                className="field__input"
+                id="my-tasks-sort"
+                onChange={(event) => {
+                  setMyTasksSortBy(event.target.value as "deadline" | "priority");
+                  setMyTasksPage(1);
+                }}
+                value={myTasksSortBy}
+              >
+                <option value="deadline">Deadline</option>
+                <option value="priority">Priority</option>
+              </select>
+            </label>
+            <label className="field" htmlFor="my-tasks-collaborators">
+              <span className="field__label">Task scope</span>
+              <div className="member-actions">
+                <input
+                  checked={includeCollaboratorTasks}
+                  id="my-tasks-collaborators"
+                  onChange={(event) => {
+                    setIncludeCollaboratorTasks(event.target.checked);
+                    setMyTasksPage(1);
+                  }}
+                  type="checkbox"
+                />
+                <span>Include collaborator tasks</span>
+              </div>
+            </label>
+          </div>
+          {myTasksQuery.isPending ? (
+            <StatusMessage title="Loading My Tasks">
+              Your assigned task list is loading from the backend.
+            </StatusMessage>
+          ) : null}
+          {isApiError(myTasksQuery.error) ? (
+            <StatusMessage tone="error" title="My Tasks unavailable">
+              {myTasksQuery.error.message}
+            </StatusMessage>
+          ) : null}
+          {!myTasksQuery.isPending && !myTasksQuery.error && myTasks.length === 0 ? (
+            <StatusMessage title="No tasks assigned">
+              Assigned work will appear here once you are added as a primary assignee{includeCollaboratorTasks ? " or collaborator" : ""}.
+            </StatusMessage>
+          ) : null}
+          {myTasks.length ? (
+            <div className="form-stack">
+              <div className="task-list" role="list" aria-label="My tasks">
+                {myTasks.map((task) => (
+                  <button
+                    className={`task-list__item${task.id === selectedTaskId ? " project-list__item--active" : ""}`}
+                    key={task.id}
+                    onClick={() => {
+                      setShowTaskDeleteSuccess(false);
+                      setTaskConflictMessage(null);
+                      setSelectedTaskId(task.id);
+                    }}
+                    role="listitem"
+                    type="button"
+                  >
+                    <div className="task-list__identity">
+                      <span className="task-list__key">{task.task_key}</span>
+                      <strong>{task.title}</strong>
+                      <span>{task.description || "No description yet."}</span>
+                    </div>
+                    <div className="task-list__meta">
+                      <span>{task.status.name}</span>
+                      <span>{task.priority?.name ?? "No priority"}</span>
+                      <span>{task.primary_assignee?.name || "Unassigned"}</span>
+                      <span>{task.deadline ? `Due ${task.deadline}` : "No deadline"}</span>
+                      <span>{task.is_blocked ? "Blocked" : "Not blocked"}</span>
+                      <span>{task.is_overdue ? "Overdue" : "On track"}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {myTasksQuery.data ? (
+                <div className="member-actions">
+                  <Button
+                    disabled={myTasksQuery.data.pagination.has_previous === false || myTasksQuery.isPending}
+                    onClick={() => setMyTasksPage((currentPage) => Math.max(1, currentPage - 1))}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Previous My Tasks
+                  </Button>
+                  <span>
+                    Page {myTasksQuery.data.pagination.page} of {myTasksQuery.data.pagination.total_pages}
+                  </span>
+                  <Button
+                    disabled={myTasksQuery.data.pagination.has_next === false || myTasksQuery.isPending}
+                    onClick={() => setMyTasksPage((currentPage) => currentPage + 1)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Next My Tasks
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </Panel>
@@ -530,13 +903,146 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
           <div className="panel-heading">
             <h2 className="panel-heading__title">Project tasks</h2>
             <p className="panel-heading__body">
-              Create the first tracked tasks inside the selected project and keep them visible in the same workspace.
+              Search, filter, and page through root tasks and subtasks without leaving the selected project workspace.
             </p>
           </div>
           {!projectId ? (
             <StatusMessage title="Project tasks are unavailable">
               Select a project detail route before managing tasks.
             </StatusMessage>
+          ) : null}
+          {projectId ? (
+            <form
+              className="form-stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setProjectTaskPage(1);
+                setProjectTaskFilters({
+                  assignee_id: projectTaskAssigneeDraft,
+                  deadline_from: projectTaskDeadlineFromDraft,
+                  deadline_to: projectTaskDeadlineToDraft,
+                  is_blocked: projectTaskBlockedOnlyDraft,
+                  priority_id: projectTaskPriorityDraft,
+                  search: projectTaskSearchDraft.trim(),
+                  status_id: projectTaskStatusDraft,
+                });
+              }}
+            >
+              <Field
+                label="Search project tasks"
+                onChange={(event) => setProjectTaskSearchDraft(event.target.value)}
+                type="search"
+                value={projectTaskSearchDraft}
+              />
+              <div className="split-fields">
+                <label className="field" htmlFor="task-filter-status">
+                  <span className="field__label">Status filter</span>
+                  <select
+                    className="field__input"
+                    id="task-filter-status"
+                    onChange={(event) => setProjectTaskStatusDraft(event.target.value)}
+                    value={projectTaskStatusDraft}
+                  >
+                    <option value="">All statuses</option>
+                    {workflowMetadataQuery.data?.statuses.map((status) => (
+                      <option key={status.id} value={status.id}>
+                        {status.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" htmlFor="task-filter-priority">
+                  <span className="field__label">Priority filter</span>
+                  <select
+                    className="field__input"
+                    id="task-filter-priority"
+                    onChange={(event) => setProjectTaskPriorityDraft(event.target.value)}
+                    value={projectTaskPriorityDraft}
+                  >
+                    <option value="">All priorities</option>
+                    {workflowMetadataQuery.data?.priorities.map((priority) => (
+                      <option key={priority.id} value={priority.id}>
+                        {priority.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="split-fields">
+                <label className="field" htmlFor="task-filter-assignee">
+                  <span className="field__label">Assignee filter</span>
+                  <select
+                    className="field__input"
+                    id="task-filter-assignee"
+                    onChange={(event) => setProjectTaskAssigneeDraft(event.target.value)}
+                    value={projectTaskAssigneeDraft}
+                  >
+                    <option value="">All assignees</option>
+                    {activeProjectMembers.map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" htmlFor="task-filter-blocked">
+                  <span className="field__label">Blocked filter</span>
+                  <div className="member-actions">
+                    <input
+                      checked={projectTaskBlockedOnlyDraft}
+                      id="task-filter-blocked"
+                      onChange={(event) => setProjectTaskBlockedOnlyDraft(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>Only blocked tasks</span>
+                  </div>
+                </label>
+              </div>
+              <div className="split-fields">
+                <Field
+                  label="Deadline from"
+                  onChange={(event) => setProjectTaskDeadlineFromDraft(event.target.value)}
+                  type="date"
+                  value={projectTaskDeadlineFromDraft}
+                />
+                <Field
+                  label="Deadline to"
+                  onChange={(event) => setProjectTaskDeadlineToDraft(event.target.value)}
+                  type="date"
+                  value={projectTaskDeadlineToDraft}
+                />
+              </div>
+              <div className="member-actions">
+                <Button type="submit" variant="secondary">
+                  Apply task filters
+                </Button>
+                <Button
+                  onClick={() => {
+                    setProjectTaskPage(1);
+                    setProjectTaskSearchDraft("");
+                    setProjectTaskStatusDraft("");
+                    setProjectTaskPriorityDraft("");
+                    setProjectTaskAssigneeDraft("");
+                    setProjectTaskDeadlineFromDraft("");
+                    setProjectTaskDeadlineToDraft("");
+                    setProjectTaskBlockedOnlyDraft(false);
+                    setProjectTaskFilters({
+                      assignee_id: "",
+                      deadline_from: "",
+                      deadline_to: "",
+                      is_blocked: false,
+                      priority_id: "",
+                      search: "",
+                      status_id: "",
+                    });
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  Clear task filters
+                </Button>
+              </div>
+            </form>
           ) : null}
           {projectId && projectTasksQuery.isPending ? (
             <StatusMessage title="Loading tasks">
@@ -551,45 +1057,93 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
           {projectId &&
           !projectTasksQuery.isPending &&
           !projectTasksQuery.error &&
-          (projectTasksQuery.data?.length ?? 0) === 0 ? (
-            <StatusMessage title="No project tasks yet">
-              Create the first task to start building project-level work tracking beyond membership setup.
+          projectTasks.length === 0 ? (
+            <StatusMessage
+              title={
+                projectTaskFilters.search
+                || projectTaskFilters.status_id
+                || projectTaskFilters.priority_id
+                || projectTaskFilters.assignee_id
+                || projectTaskFilters.deadline_from
+                || projectTaskFilters.deadline_to
+                || projectTaskFilters.is_blocked
+                  ? "No matching tasks"
+                  : "No project tasks yet"
+              }
+            >
+              {projectTaskFilters.search
+              || projectTaskFilters.status_id
+              || projectTaskFilters.priority_id
+              || projectTaskFilters.assignee_id
+              || projectTaskFilters.deadline_from
+              || projectTaskFilters.deadline_to
+              || projectTaskFilters.is_blocked
+                ? "No tasks match the current search and filters."
+                : "Create the first task to start building project-level work tracking beyond membership setup."}
             </StatusMessage>
           ) : null}
-          {projectTasksQuery.data?.length ? (
-            <div className="task-list" role="list" aria-label="Project tasks">
-              {projectTasksQuery.data.map((task) => (
-                <button
-                  className={`task-list__item${task.id === selectedTaskId ? " project-list__item--active" : ""}`}
-                  key={task.id}
-                  onClick={() => {
-                    setTaskConflictMessage(null);
-                    setSelectedTaskId(task.id);
-                  }}
-                  role="listitem"
-                  type="button"
-                >
-                  <div className="task-list__identity">
-                    <span className="task-list__key">{task.task_key}</span>
-                    <strong>{task.title}</strong>
-                    <span>{task.description || "No description yet."}</span>
-                  </div>
-                  <div className="task-list__meta">
-                    <span className="task-status-pill">
-                      {task.status.name}
-                      {!task.status.is_active ? " (inactive)" : ""}
-                    </span>
-                    <span>
-                      {task.priority
-                        ? `${task.priority.name}${task.priority.is_active ? "" : " (inactive)"}`
-                        : "No priority"}
-                    </span>
-                    <span>{task.primary_assignee?.name || "Unassigned"}</span>
-                    <span>{task.deadline ? `Due ${task.deadline}` : "No deadline"}</span>
-                    <span>{task.is_overdue ? "Overdue" : "On track"}</span>
-                  </div>
-                </button>
-              ))}
+          {projectTasks.length ? (
+            <div className="form-stack">
+              <div className="task-list" role="list" aria-label="Project tasks">
+                {projectTasks.map((task) => (
+                  <button
+                    className={`task-list__item${task.id === selectedTaskId ? " project-list__item--active" : ""}`}
+                    key={task.id}
+                    onClick={() => {
+                      setShowTaskDeleteSuccess(false);
+                      setTaskConflictMessage(null);
+                      setSelectedTaskId(task.id);
+                    }}
+                    role="listitem"
+                    type="button"
+                  >
+                    <div className="task-list__identity">
+                      <span className="task-list__key">{task.task_key}</span>
+                      <strong>{task.title}</strong>
+                      <span>{task.description || "No description yet."}</span>
+                    </div>
+                    <div className="task-list__meta">
+                      <span>{task.parent_task_id ? "Subtask" : "Root task"}</span>
+                      <span>{task.is_blocked ? "Blocked" : "Not blocked"}</span>
+                      <span className="task-status-pill">
+                        {task.status.name}
+                        {!task.status.is_active ? " (inactive)" : ""}
+                      </span>
+                      <span>
+                        {task.priority
+                          ? `${task.priority.name}${task.priority.is_active ? "" : " (inactive)"}`
+                          : "No priority"}
+                      </span>
+                      <span>{task.primary_assignee?.name || "Unassigned"}</span>
+                      <span>{task.deadline ? `Due ${task.deadline}` : "No deadline"}</span>
+                      <span>{task.is_overdue ? "Overdue" : "On track"}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {projectTasksQuery.data ? (
+                <div className="member-actions">
+                  <Button
+                    disabled={projectTasksQuery.data.pagination.has_previous === false || projectTasksQuery.isPending}
+                    onClick={() => setProjectTaskPage((currentPage) => Math.max(1, currentPage - 1))}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Previous task page
+                  </Button>
+                  <span>
+                    Page {projectTasksQuery.data.pagination.page} of {projectTasksQuery.data.pagination.total_pages}
+                  </span>
+                  <Button
+                    disabled={projectTasksQuery.data.pagination.has_next === false || projectTasksQuery.isPending}
+                    onClick={() => setProjectTaskPage((currentPage) => currentPage + 1)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Next task page
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {projectQuery.data && !projectQuery.data.can_edit ? (
@@ -611,10 +1165,13 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     start_date: values.start_date || null,
                     deadline: values.deadline || null,
                     primary_assignee_id: values.primary_assignee_id || null,
+                    parent_task_id: values.parent_task_id || null,
                   },
                   {
-                    onSuccess: () => {
+                    onSuccess: (task) => {
                       setShowTaskSuccess(true);
+                      setShowTaskDeleteSuccess(false);
+                      setSelectedTaskId(task.id);
                       resetTaskForm({
                         title: "",
                         description: "",
@@ -622,6 +1179,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                         start_date: "",
                         deadline: "",
                         primary_assignee_id: values.primary_assignee_id,
+                        parent_task_id: values.parent_task_id,
                       });
                     },
                   },
@@ -684,6 +1242,24 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   </span>
                 ) : null}
               </label>
+              <label className="field" htmlFor="task-parent">
+                <span className="field__label">Parent task</span>
+                <select className="field__input" id="task-parent" {...registerTask("parent_task_id")}>
+                  <option value="">Root task</option>
+                  {projectTasks
+                    ?.filter((task) => task.parent_task_id === null)
+                    .map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.task_key} {task.title}
+                      </option>
+                    ))}
+                </select>
+                {taskErrors.parent_task_id?.message ?? serverTaskParentError ? (
+                  <span className="field__error" role="alert">
+                    {taskErrors.parent_task_id?.message ?? serverTaskParentError}
+                  </span>
+                ) : null}
+              </label>
               <div className="split-fields">
                 <Field
                   error={taskErrors.start_date?.message ?? serverTaskStartDateError}
@@ -715,7 +1291,7 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
               ) : null}
               {showTaskSuccess ? (
                 <StatusMessage title="Task created">
-                  The project task list was updated with the new seeded TODO task.
+                  The project task list was updated with the new active task.
                 </StatusMessage>
               ) : null}
               <Button
@@ -732,13 +1308,18 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
           <div className="panel-heading">
             <h2 className="panel-heading__title">Task detail</h2>
             <p className="panel-heading__body">
-              Open a task to inspect its workflow metadata, update allowed fields, and track status changes without
-              leaving the project workspace.
+              Open a task to inspect hierarchy, dependencies, and workflow metadata, update allowed fields, and manage deletion
+              without leaving the project workspace.
             </p>
           </div>
           {!projectId ? (
             <StatusMessage title="Task detail is unavailable">
               Select a project before opening task detail.
+            </StatusMessage>
+          ) : null}
+          {projectId && !selectedTaskId && showTaskDeleteSuccess ? (
+            <StatusMessage title="Task deleted">
+              The selected task was removed from the active project workspace.
             </StatusMessage>
           ) : null}
           {projectId && !selectedTaskId && !projectTasksQuery.isPending ? (
@@ -775,6 +1356,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                 </p>
                 <dl className="details-list">
                   <div>
+                    <dt>Hierarchy</dt>
+                    <dd>{selectedTaskQuery.data.parent_task_id ? "Subtask" : "Root task"}</dd>
+                  </div>
+                  <div>
                     <dt>Status</dt>
                     <dd>
                       {selectedTaskQuery.data.status.name}
@@ -794,6 +1379,10 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   <div>
                     <dt>Assignee</dt>
                     <dd>{selectedTaskQuery.data.primary_assignee?.name || "Unassigned"}</dd>
+                  </div>
+                  <div>
+                    <dt>Parent task</dt>
+                    <dd>{selectedParentTask ? `${selectedParentTask.task_key} ${selectedParentTask.title}` : "No parent task"}</dd>
                   </div>
                   <div>
                     <dt>Collaborators</dt>
@@ -824,6 +1413,279 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                     <dd>{selectedTaskQuery.data.version}</dd>
                   </div>
                 </dl>
+              </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Subtasks</h3>
+                {selectedTaskQuery.data.subtasks.length ? (
+                  <div className="task-list" role="list" aria-label="Subtasks">
+                    {selectedTaskQuery.data.subtasks.map((subtask) => (
+                      <button
+                        className={`task-list__item${subtask.id === selectedTaskId ? " project-list__item--active" : ""}`}
+                        key={subtask.id}
+                        onClick={() => {
+                          setShowTaskDeleteSuccess(false);
+                          setTaskConflictMessage(null);
+                          setSelectedTaskId(subtask.id);
+                        }}
+                        role="listitem"
+                        type="button"
+                      >
+                        <div className="task-list__identity">
+                          <span className="task-list__key">{subtask.task_key}</span>
+                          <strong>{subtask.title}</strong>
+                          <span>{subtask.description || "No description yet."}</span>
+                        </div>
+                        <div className="task-list__meta">
+                          <span className="task-status-pill">{subtask.status.name}</span>
+                          <span>{subtask.primary_assignee?.name || "Unassigned"}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <StatusMessage title="No subtasks">
+                    This task has no active subtasks yet.
+                  </StatusMessage>
+                )}
+              </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Dependencies</h3>
+                {selectedTaskQuery.data.dependencies.length ? (
+                  <div className="task-list" role="list" aria-label="Task dependencies">
+                    {selectedTaskQuery.data.dependencies.map((dependency) => (
+                      <div className="task-list__item" key={dependency.id} role="listitem">
+                        <button
+                          className="task-list__identity"
+                          onClick={() => {
+                            setShowTaskDeleteSuccess(false);
+                            setTaskConflictMessage(null);
+                            setSelectedTaskId(dependency.id);
+                          }}
+                          type="button"
+                        >
+                          <span className="task-list__key">{dependency.task_key}</span>
+                          <strong>{dependency.title}</strong>
+                        </button>
+                        <div className="task-list__meta">
+                          <span>{dependency.parent_task_id ? "Subtask" : "Root task"}</span>
+                          <span className="task-status-pill">{dependency.status.name}</span>
+                          <span>{dependency.is_blocked ? "Blocked" : "Not blocked"}</span>
+                          {canManageTaskDependencies ? (
+                            <Button
+                              disabled={removeTaskDependencyMutation.isPending}
+                              onClick={() => {
+                                removeTaskDependencyMutation.reset();
+                                addTaskDependencyMutation.reset();
+                                removeTaskDependencyMutation.mutate(dependency.id);
+                              }}
+                              type="button"
+                              variant="secondary"
+                            >
+                              Remove dependency
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <StatusMessage title="No dependencies">
+                    This task is not waiting on another active task yet.
+                  </StatusMessage>
+                )}
+                {canManageTaskDependencies ? (
+                  <div className="form-stack">
+                    <label className="field" htmlFor="task-dependency">
+                      <span className="field__label">Add dependency</span>
+                      <select
+                        className="field__input"
+                        id="task-dependency"
+                        onChange={(event) => {
+                          setDependencyDraft(event.target.value);
+                          addTaskDependencyMutation.reset();
+                          removeTaskDependencyMutation.reset();
+                        }}
+                        value={dependencyDraft}
+                      >
+                        <option value="">Select a task</option>
+                        {availableDependencyTargets.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.task_key} {task.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Button
+                      disabled={addTaskDependencyMutation.isPending || !dependencyDraft}
+                      onClick={() => {
+                        if (!dependencyDraft) {
+                          return;
+                        }
+
+                        removeTaskDependencyMutation.reset();
+                        addTaskDependencyMutation.reset();
+                        addTaskDependencyMutation.mutate(
+                          { depends_on_task_id: dependencyDraft },
+                          {
+                            onSuccess: () => {
+                              setDependencyDraft("");
+                            },
+                          },
+                        );
+                      }}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {addTaskDependencyMutation.isPending ? "Adding dependency..." : "Add dependency"}
+                    </Button>
+                  </div>
+                ) : (
+                  <StatusMessage tone="warning" title="Dependency changes are restricted">
+                    Only Admins and active Project Managers can manage dependencies.
+                  </StatusMessage>
+                )}
+                {addTaskDependencyError ? (
+                  <StatusMessage tone="error" title="Dependency add failed">
+                    {addTaskDependencyError.message}
+                  </StatusMessage>
+                ) : null}
+                {removeTaskDependencyError ? (
+                  <StatusMessage tone="error" title="Dependency remove failed">
+                    {removeTaskDependencyError.message}
+                  </StatusMessage>
+                ) : null}
+              </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Comments</h3>
+                {taskCommentsConnectionState === "connecting" ? (
+                  <StatusMessage title="Connecting live comments">
+                    The task comment stream is connecting.
+                  </StatusMessage>
+                ) : null}
+                {taskCommentsConnectionState === "reconnecting" ? (
+                  <StatusMessage tone="warning" title="Reconnecting live comments">
+                    Live comment updates are reconnecting. Missed comments will be fetched automatically.
+                  </StatusMessage>
+                ) : null}
+                {taskCommentsConnectionState === "unavailable" ? (
+                  <StatusMessage tone="warning" title="Live comments unavailable">
+                    Real-time comment updates are unavailable in this environment. The saved timeline still works.
+                  </StatusMessage>
+                ) : null}
+                {taskCommentsQuery.isPending ? (
+                  <StatusMessage title="Loading comments">
+                    The saved comment timeline is loading from the backend.
+                  </StatusMessage>
+                ) : null}
+                {isApiError(taskCommentsQuery.error) ? (
+                  <StatusMessage tone="error" title="Comments unavailable">
+                    {taskCommentsQuery.error.message}
+                  </StatusMessage>
+                ) : null}
+                {!taskCommentsQuery.isPending &&
+                !taskCommentsQuery.error &&
+                !(taskCommentsQuery.data?.length ?? 0) ? (
+                  <StatusMessage title="No comments yet">
+                    Add the first immutable task comment to start the discussion timeline.
+                  </StatusMessage>
+                ) : null}
+                {taskCommentsQuery.data?.length ? (
+                  <div className="task-list" role="list" aria-label="Task comments">
+                    {taskCommentsQuery.data.map((comment) => (
+                      <div className="task-list__item" key={comment.id} role="listitem">
+                        <div className="task-list__identity">
+                          <strong>{comment.author.name}</strong>
+                          <span>{comment.content}</span>
+                        </div>
+                        <div className="task-list__meta">
+                          <span>{new Date(comment.created_at).toLocaleString()}</span>
+                          <span>Immutable</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {canEditTaskDescription ? (
+                  <div className="form-stack">
+                    <label className="field" htmlFor="task-comment">
+                      <span className="field__label">Add comment</span>
+                      <textarea
+                        className="field__input field__input--textarea"
+                        id="task-comment"
+                        onChange={(event) => setCommentDraft(event.target.value)}
+                        rows={3}
+                        value={commentDraft}
+                      />
+                    </label>
+                    <Button
+                      disabled={createTaskCommentMutation.isPending || commentDraft.trim().length === 0}
+                      onClick={() => {
+                        createTaskCommentMutation.reset();
+                        createTaskCommentMutation.mutate(
+                          { content: commentDraft },
+                          {
+                            onSuccess: () => {
+                              setCommentDraft("");
+                            },
+                          },
+                        );
+                      }}
+                      type="button"
+                    >
+                      {createTaskCommentMutation.isPending ? "Posting comment..." : "Post comment"}
+                    </Button>
+                    {createTaskCommentError ? (
+                      <StatusMessage tone="error" title="Comment failed">
+                        {createTaskCommentError.message}
+                      </StatusMessage>
+                    ) : null}
+                  </div>
+                ) : (
+                  <StatusMessage tone="warning" title="Comments are restricted">
+                    Only active project members can add task comments.
+                  </StatusMessage>
+                )}
+              </div>
+
+              <div className="form-stack">
+                <h3 className="card-title">Task activity</h3>
+                {taskActivityQuery.isPending ? (
+                  <StatusMessage title="Loading activity">
+                    The task activity timeline is loading from the backend.
+                  </StatusMessage>
+                ) : null}
+                {isApiError(taskActivityQuery.error) ? (
+                  <StatusMessage tone="error" title="Task activity unavailable">
+                    {taskActivityQuery.error.message}
+                  </StatusMessage>
+                ) : null}
+                {!taskActivityQuery.isPending &&
+                !taskActivityQuery.error &&
+                !(taskActivityQuery.data?.length ?? 0) ? (
+                  <StatusMessage title="No task activity yet">
+                    Task creation, updates, status changes, and dependency events will appear here.
+                  </StatusMessage>
+                ) : null}
+                {taskActivityQuery.data?.length ? (
+                  <div className="task-list" role="list" aria-label="Task activity">
+                    {taskActivityQuery.data.map((entry) => (
+                      <div className="task-list__item" key={entry.id} role="listitem">
+                        <div className="task-list__identity">
+                          <strong>{entry.message}</strong>
+                          <span>{new Date(entry.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="task-list__meta">
+                          <span>{entry.event_type}</span>
+                          <span>{entry.actor_name ?? "System"}</span>
+                          <span>{entry.task_key ?? selectedTaskQuery.data.task_key}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {taskConflictMessage ? (
@@ -886,7 +1748,9 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                       The current workflow metadata does not expose another active transition from this status.
                     </StatusMessage>
                   )}
-                  {changeTaskStatusError?.code === "INVALID_STATUS_TRANSITION" ? (
+                  {["INVALID_STATUS_TRANSITION", "TASK_BLOCKED", "SUBTASKS_INCOMPLETE"].includes(
+                    changeTaskStatusError?.code ?? "",
+                  ) ? (
                     <StatusMessage tone="error" title="Status change failed">
                       {changeTaskStatusError.message}
                     </StatusMessage>
@@ -1078,6 +1942,59 @@ export function ProjectsHomePage({ projectId, user }: ProjectsHomePageProps) {
                   planning fields.
                 </StatusMessage>
               )}
+
+              {canManageTaskPlanning ? (
+                <div className="form-stack">
+                  <h3 className="card-title">Delete task</h3>
+                  {selectedTaskQuery.data.subtasks.length ? (
+                    <label className="field" htmlFor="confirm-cascade-delete">
+                      <span className="field__label">
+                        I understand this will also soft-delete all active subtasks.
+                      </span>
+                      <input
+                        checked={confirmCascadeDelete}
+                        className="field__input"
+                        id="confirm-cascade-delete"
+                        onChange={(event) => setConfirmCascadeDelete(event.target.checked)}
+                        type="checkbox"
+                      />
+                    </label>
+                  ) : null}
+                  {deleteTaskError?.code === "CASCADE_CONFIRMATION_REQUIRED" ? (
+                    <StatusMessage tone="error" title="Task deletion failed">
+                      {deleteTaskError.message}
+                    </StatusMessage>
+                  ) : null}
+                  {deleteTaskError?.code === "TASK_PERMISSION_DENIED" ? (
+                    <StatusMessage tone="error" title="Permission denied">
+                      {deleteTaskError.message}
+                    </StatusMessage>
+                  ) : null}
+                  <Button
+                    className="button button--danger"
+                    disabled={deleteTaskMutation.isPending}
+                    onClick={() => {
+                      setShowTaskDeleteSuccess(false);
+                      deleteTaskMutation.reset();
+                      deleteTaskMutation.mutate(
+                        {
+                          confirm_cascade_subtasks: confirmCascadeDelete,
+                        },
+                        {
+                          onSuccess: async () => {
+                            setShowTaskDeleteSuccess(true);
+                            setSelectedTaskId(null);
+                            await projectTasksQuery.refetch();
+                          },
+                        },
+                      );
+                    }}
+                    type="button"
+                  >
+                    {deleteTaskMutation.isPending ? "Deleting task..." : "Delete task"}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </Panel>

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { addProjectMember } from "../api/projectsApi";
 import { type AddProjectMemberRequest, type ProjectMember } from "../types";
+import { projectActivityQueryKey } from "./useProjectActivityQuery";
 import { projectMembersQueryKey } from "./useProjectMembersQuery";
 
 export function useAddProjectMemberMutation(projectId: string | null) {
@@ -15,7 +16,7 @@ export function useAddProjectMemberMutation(projectId: string | null) {
 
       return addProjectMember(projectId, payload);
     },
-    onSuccess: (member) => {
+    onSuccess: async (member) => {
       if (!projectId) {
         return;
       }
@@ -30,6 +31,11 @@ export function useAddProjectMemberMutation(projectId: string | null) {
           return nextMembers.sort((left, right) => left.name.localeCompare(right.name));
         },
       );
+
+      await queryClient.invalidateQueries({
+        queryKey: projectActivityQueryKey(projectId),
+        exact: true,
+      });
     },
   });
 }
